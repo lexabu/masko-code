@@ -105,7 +105,9 @@ private final class CallbackMenuItem: NSMenuItem {
             .withSymbolConfiguration(.init(pointSize: 13, weight: .regular))
     }
     required init(coder: NSCoder) { fatalError() }
-    @objc private func fire() { callback() }
+    @objc private func fire() {
+        DispatchQueue.main.async { [self] in callback() }
+    }
 }
 
 /// Invisible NSView that shows an NSMenu when triggered by the "..." button.

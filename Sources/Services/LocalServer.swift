@@ -6,8 +6,7 @@ final class LocalServer {
     private var listener: NWListener?
     private(set) var isRunning = false
     let port: UInt16 = Constants.serverPort
-    private var retryCount = 0
-    private static let maxRetries = 3
+    private var stopped = false
 
     var onEventReceived: ((ClaudeEvent) -> Void)?
     var onPermissionRequest: ((ClaudeEvent, NWConnection) -> Void)?
@@ -15,6 +14,7 @@ final class LocalServer {
     var onInputReceived: ((String, ConditionValue) -> Void)?
 
     func start() throws {
+        stopped = false
         // Cancel any existing listener before creating a new one
         listener?.cancel()
         listener = nil
@@ -33,20 +33,16 @@ final class LocalServer {
                 switch state {
                 case .ready:
                     self.isRunning = true
-                    self.retryCount = 0
                     print("[masko-desktop] Server listening on port \(self.port)")
                 case .failed(let error):
                     self.isRunning = false
                     self.listener?.cancel()
                     self.listener = nil
-                    if self.retryCount < Self.maxRetries {
-                        self.retryCount += 1
-                        print("[masko-desktop] Server failed: \(error) — retrying (\(self.retryCount)/\(Self.maxRetries))...")
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                            try? self.start()
-                        }
-                    } else {
-                        print("[masko-desktop] Server failed after \(Self.maxRetries) retries: \(error)")
+                    guard !self.stopped else { return }
+                    print("[masko-desktop] Server failed: \(error) — retrying in 5s...")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                        guard !self.stopped else { return }
+                        try? self.start()
                     }
                 default:
                     break
@@ -198,6 +194,7 @@ final class LocalServer {
     }
 
     func stop() {
+        stopped = true
         listener?.cancel()
         listener = nil
         isRunning = false
