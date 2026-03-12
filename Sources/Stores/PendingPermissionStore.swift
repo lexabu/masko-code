@@ -240,8 +240,8 @@ struct PendingPermission: Identifiable {
             }
         }
 
-        // Fallback: most recently modified .md in ~/.claude/plans/
-        return Self.readLatestPlanFile()
+        // Fallback: most recently modified .md scoped to this session's project
+        return Self.readLatestPlanFile(projectDir: event.cwd)
     }
 
     /// Search transcript tail (~64KB) for the plan file path.
@@ -253,7 +253,7 @@ struct PendingPermission: Identifiable {
 
         let fileSize = handle.seekToEndOfFile()
         guard fileSize > 0 else { return nil }
-        let readSize = min(UInt64(65536), fileSize)
+        let readSize = min(UInt64(262144), fileSize)  // 256KB — plan path is in system prompt, can be far from tail
         handle.seek(toFileOffset: fileSize - readSize)
         let data = handle.readDataToEndOfFile()
         guard let text = String(data: data, encoding: .utf8) else { return nil }
@@ -278,12 +278,13 @@ struct PendingPermission: Identifiable {
         return nil
     }
 
-    /// Fallback: read most recently modified plan file from all plan directories
-    private static func readLatestPlanFile() -> String? {
+    /// Fallback: read most recently modified plan file, scoped to the session's project when possible.
+    /// Claude Code stores project plans in ~/.claude/projects/-<path-with-slashes-replaced-by-dashes>/plans/
+    private static func readLatestPlanFile(projectDir: String? = nil) -> String? {
         let home = FileManager.default.homeDirectoryForCurrentUser
         var candidates: [URL] = []
 
-        // Global plans directory
+        // Global plans directory (always searched — plans can live here too)
         let globalDir = home.appendingPathComponent(".claude/plans")
         if let files = try? FileManager.default.contentsOfDirectory(
             at: globalDir, includingPropertiesForKeys: [.contentModificationDateKey]
@@ -291,17 +292,29 @@ struct PendingPermission: Identifiable {
             candidates.append(contentsOf: files.filter { $0.pathExtension == "md" })
         }
 
-        // Project-specific plan directories
-        let projectsDir = home.appendingPathComponent(".claude/projects")
-        if let projects = try? FileManager.default.contentsOfDirectory(
-            at: projectsDir, includingPropertiesForKeys: nil
-        ) {
-            for project in projects {
-                let plansDir = project.appendingPathComponent("plans")
-                if let files = try? FileManager.default.contentsOfDirectory(
-                    at: plansDir, includingPropertiesForKeys: [.contentModificationDateKey]
-                ) {
-                    candidates.append(contentsOf: files.filter { $0.pathExtension == "md" })
+        // Project-specific plans — scope to THIS project if cwd is available
+        if let cwd = projectDir {
+            // Claude Code encodes project dirs as: ~/.claude/projects/-Users-foo-myproject/plans/
+            let projectHash = cwd.replacingOccurrences(of: "/", with: "-")
+            let projectPlanDir = home.appendingPathComponent(".claude/projects/\(projectHash)/plans")
+            if let files = try? FileManager.default.contentsOfDirectory(
+                at: projectPlanDir, includingPropertiesForKeys: [.contentModificationDateKey]
+            ) {
+                candidates.append(contentsOf: files.filter { $0.pathExtension == "md" })
+            }
+        } else {
+            // No cwd — search ALL project plan dirs (original behavior)
+            let projectsDir = home.appendingPathComponent(".claude/projects")
+            if let projects = try? FileManager.default.contentsOfDirectory(
+                at: projectsDir, includingPropertiesForKeys: nil
+            ) {
+                for project in projects {
+                    let plansDir = project.appendingPathComponent("plans")
+                    if let files = try? FileManager.default.contentsOfDirectory(
+                        at: plansDir, includingPropertiesForKeys: [.contentModificationDateKey]
+                    ) {
+                        candidates.append(contentsOf: files.filter { $0.pathExtension == "md" })
+                    }
                 }
             }
         }
@@ -448,6 +461,16 @@ final class PendingPermissionStore {
         for perm in matching {
             silentRemove(id: perm.id)
         }
+    }
+
+    /// Dismiss a single pending permission by its toolUseId.
+    /// Used when a postToolUse event arrives — only the specific tool that completed should be dismissed,
+    /// not all permissions for the agent (which would incorrectly remove unrelated pending permissions).
+    func dismissByToolUseId(sessionId: String, toolUseId: String) {
+        guard let perm = pending.first(where: {
+            $0.event.sessionId == sessionId && $0.event.toolUseId == toolUseId
+        }) else { return }
+        silentRemove(id: perm.id)
     }
 
     /// Remove a permission silently (answered from terminal or connection closed)

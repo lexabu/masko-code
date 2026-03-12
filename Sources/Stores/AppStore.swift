@@ -57,16 +57,23 @@ final class AppStore {
                 await self.eventProcessor.process(event)
 
                 // If a subsequent event arrives for a session with pending permissions,
-                // the user resolved the permission from the terminal — dismiss the overlay.
-                // Match by both sessionId AND agentId so subagent events don't dismiss
-                // permissions from other subagents or the main thread.
+                // the user may have resolved a permission from the terminal — dismiss it.
+                // For postToolUse/postToolUseFailure: only dismiss the SPECIFIC tool use
+                // that completed (by toolUseId), not all permissions for the agent.
+                // For stop/userPromptSubmit: session is ending, dismiss all for that agent.
                 if let eventType = event.eventType,
-                   let sid = event.sessionId,
-                   [.postToolUse, .postToolUseFailure, .stop, .userPromptSubmit].contains(eventType),
-                   self.pendingPermissionStore.pending.contains(where: {
-                       $0.event.sessionId == sid && $0.event.agentId == event.agentId
-                   }) {
-                    self.pendingPermissionStore.dismissForAgent(sessionId: sid, agentId: event.agentId)
+                   let sid = event.sessionId {
+                    if [.stop, .userPromptSubmit].contains(eventType),
+                       self.pendingPermissionStore.pending.contains(where: {
+                           $0.event.sessionId == sid && $0.event.agentId == event.agentId
+                       }) {
+                        self.pendingPermissionStore.dismissForAgent(sessionId: sid, agentId: event.agentId)
+                    } else if [.postToolUse, .postToolUseFailure].contains(eventType),
+                              let toolUseId = event.toolUseId {
+                        // Only dismiss the specific permission whose tool was just executed
+                        // (i.e. user answered from terminal, not from the overlay).
+                        self.pendingPermissionStore.dismissByToolUseId(sessionId: sid, toolUseId: toolUseId)
+                    }
                 }
 
                 // Show "task completed" toast when Claude finishes (skip interrupts)

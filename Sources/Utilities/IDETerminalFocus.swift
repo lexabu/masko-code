@@ -48,9 +48,10 @@ enum IDETerminalFocus {
         }
 
         // Activate the SPECIFIC process by PID (correct window with multiple instances)
+        // Falls through to AppleScript if activate() fails (common on macOS 14+ across Spaces)
         if let pid = terminalPid,
-           let app = NSRunningApplication(processIdentifier: pid_t(pid)) {
-            app.activate()
+           let app = NSRunningApplication(processIdentifier: pid_t(pid)),
+           app.activate() {
             return
         }
 
