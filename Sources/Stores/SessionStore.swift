@@ -39,6 +39,8 @@ final class SessionStore {
     static let assistantProcessMatchers: [[String]] = [
         ["-x", "claude"],
         ["-x", "codex"],
+        ["-x", "Codex"],
+        ["-f", "codex_cli_rs"],
         // Codex desktop runs as an app bundle process (not "Codex Desktop").
         ["-f", "Codex.app"],
         // Keep legacy matcher for compatibility with older process naming.
