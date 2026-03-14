@@ -412,6 +412,30 @@ final class CodexEventMapperTests: XCTestCase {
         XCTAssertEqual(result.events.first?.message, "Token usage: primary 11%, secondary 14%")
     }
 
+    func testTokenCountFallsBackToAbsoluteUsageWhenRateLimitsMissing() throws {
+        let sessionId = "019cd686-3b91-78a1-9356-21b475548352"
+        let context = CodexSessionContext(
+            sessionId: sessionId,
+            cwd: "/Users/test/project",
+            source: "cli",
+            originator: "codex_cli_rs"
+        )
+        let fileURL = URL(fileURLWithPath: "/tmp/rollout-2026-03-09T23-54-07-\(sessionId).jsonl")
+        let line = #"""
+        {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":13500,"cached_input_tokens":3456,"output_tokens":848,"reasoning_output_tokens":793,"total_tokens":14348}},"rate_limits":null}}
+        """#
+
+        let result = CodexEventMapper.parse(line: line, fileURL: fileURL, context: context)
+
+        XCTAssertEqual(result.events.count, 1)
+        XCTAssertEqual(result.events.first?.hookEventName, HookEventType.notification.rawValue)
+        XCTAssertEqual(result.events.first?.notificationType, "codex_token_count")
+        XCTAssertEqual(
+            result.events.first?.message,
+            "Token usage: total 14,348, input 13,500 (+ 3,456 cached), output 848 (reasoning 793)"
+        )
+    }
+
     func testResponseItemMessageMapsToNotification() throws {
         let sessionId = "019cd686-3b91-78a1-9356-21b475548352"
         let context = CodexSessionContext(

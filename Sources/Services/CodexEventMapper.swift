@@ -918,22 +918,46 @@ enum CodexEventMapper {
     }
 
     private static func codexTokenCountMessage(payload: [String: Any]) -> String {
-        guard let limits = payload["rate_limits"] as? [String: Any] else {
+        if let limits = payload["rate_limits"] as? [String: Any] {
+            var parts: [String] = []
+            if let primary = limits["primary"] as? [String: Any],
+               let percent = primary["used_percent"] {
+                parts.append("primary \(percent)%")
+            }
+            if let secondary = limits["secondary"] as? [String: Any],
+               let percent = secondary["used_percent"] {
+                parts.append("secondary \(percent)%")
+            }
+            if !parts.isEmpty {
+                return "Token usage: " + parts.joined(separator: ", ")
+            }
+        }
+
+        guard let info = payload["info"] as? [String: Any],
+              let total = info["total_token_usage"] as? [String: Any] else {
             return "Codex token usage updated"
         }
 
         var parts: [String] = []
-        if let primary = limits["primary"] as? [String: Any],
-           let percent = primary["used_percent"] {
-            parts.append("primary \(percent)%")
+        if let totalTokens = integerValue(total["total_tokens"]) {
+            parts.append("total \(formattedTokenCount(totalTokens))")
         }
-        if let secondary = limits["secondary"] as? [String: Any],
-           let percent = secondary["used_percent"] {
-            parts.append("secondary \(percent)%")
+        if let inputTokens = integerValue(total["input_tokens"]) {
+            var inputPart = "input \(formattedTokenCount(inputTokens))"
+            if let cachedInput = integerValue(total["cached_input_tokens"]), cachedInput > 0 {
+                inputPart += " (+ \(formattedTokenCount(cachedInput)) cached)"
+            }
+            parts.append(inputPart)
         }
-        if parts.isEmpty {
-            return "Codex token usage updated"
+        if let outputTokens = integerValue(total["output_tokens"]) {
+            var outputPart = "output \(formattedTokenCount(outputTokens))"
+            if let reasoningTokens = integerValue(total["reasoning_output_tokens"]), reasoningTokens > 0 {
+                outputPart += " (reasoning \(formattedTokenCount(reasoningTokens)))"
+            }
+            parts.append(outputPart)
         }
+
+        guard !parts.isEmpty else { return "Codex token usage updated" }
         return "Token usage: " + parts.joined(separator: ", ")
     }
 
@@ -1036,5 +1060,11 @@ enum CodexEventMapper {
         guard let string = value as? String else { return nil }
         let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func formattedTokenCount(_ value: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
     }
 }
