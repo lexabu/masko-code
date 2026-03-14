@@ -76,6 +76,60 @@ final class CodexEventMapperTests: XCTestCase {
         XCTAssertEqual(stopResult.events.first?.lastAssistantMessage, "Done")
     }
 
+    func testEventMsgRequestUserInputMapsToQuestionPermissionRequest() throws {
+        let sessionId = "019cd686-3b91-78a1-9356-21b475548352"
+        let context = CodexSessionContext(
+            sessionId: sessionId,
+            cwd: "/Users/test/project",
+            source: "cli",
+            originator: "codex_cli_rs"
+        )
+        let fileURL = URL(fileURLWithPath: "/tmp/rollout-2026-03-09T23-54-07-\(sessionId).jsonl")
+        let line = #"""
+        {"type":"event_msg","payload":{"type":"request_user_input","call_id":"call_q_evt","questions":[{"id":"q1","question":"Pick one option","options":[{"label":"A","description":"First"}]}]}}
+        """#
+
+        let result = CodexEventMapper.parse(line: line, fileURL: fileURL, context: context)
+
+        XCTAssertEqual(result.events.count, 1)
+        let event = try XCTUnwrap(result.events.first)
+        XCTAssertEqual(event.hookEventName, HookEventType.permissionRequest.rawValue)
+        XCTAssertEqual(event.toolName, "AskUserQuestion")
+        XCTAssertEqual(event.toolUseId, "call_q_evt")
+        XCTAssertEqual(event.message, "Pick one option")
+        XCTAssertNotNil(event.toolInput?["questions"])
+    }
+
+    func testEventMsgExecApprovalRequestMapsToPreToolAndPermission() throws {
+        let sessionId = "019cd686-3b91-78a1-9356-21b475548352"
+        let context = CodexSessionContext(
+            sessionId: sessionId,
+            cwd: "/Users/test/project",
+            source: "cli",
+            originator: "codex_cli_rs"
+        )
+        let fileURL = URL(fileURLWithPath: "/tmp/rollout-2026-03-09T23-54-07-\(sessionId).jsonl")
+        let line = #"""
+        {"type":"event_msg","payload":{"type":"exec_approval_request","call_id":"call_exec_evt","command":["git","push"],"cwd":"/Users/test/project","reason":"Need network access to push","parsed_cmd":[]}}
+        """#
+
+        let result = CodexEventMapper.parse(line: line, fileURL: fileURL, context: context)
+
+        XCTAssertEqual(result.events.count, 2)
+        let preTool = try XCTUnwrap(result.events.first)
+        XCTAssertEqual(preTool.hookEventName, HookEventType.preToolUse.rawValue)
+        XCTAssertEqual(preTool.toolName, "exec_command")
+        XCTAssertEqual(preTool.toolUseId, "call_exec_evt")
+        XCTAssertEqual(preTool.toolInput?["cmd"]?.stringValue, "git push")
+
+        let permission = try XCTUnwrap(result.events.last)
+        XCTAssertEqual(permission.hookEventName, HookEventType.permissionRequest.rawValue)
+        XCTAssertEqual(permission.toolName, "exec_command")
+        XCTAssertEqual(permission.toolUseId, "call_exec_evt")
+        XCTAssertEqual(permission.toolInput?["sandbox_permissions"]?.stringValue, "require_escalated")
+        XCTAssertEqual(permission.message, "Need network access to push")
+    }
+
     func testCompactedEventMapsToPreCompact() throws {
         let sessionId = "019cd686-3b91-78a1-9356-21b475548352"
         let context = CodexSessionContext(

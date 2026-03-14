@@ -144,6 +144,62 @@ enum CodexEventMapper {
                         reason: payload["reason"] as? String ?? "interrupted"
                     ),
                 ]
+            case "request_user_input":
+                let toolUseId = payload["call_id"] as? String
+                var toolInput = payload
+                toolInput.removeValue(forKey: "type")
+                result.events = [
+                    ClaudeEvent(
+                        hookEventName: HookEventType.permissionRequest.rawValue,
+                        sessionId: sessionId,
+                        cwd: workingContext.cwd,
+                        toolName: "AskUserQuestion",
+                        toolInput: codableMap(toolInput),
+                        toolUseId: toolUseId,
+                        message: codexQuestionMessage(arguments: toolInput),
+                        source: source
+                    ),
+                ]
+            case "request_permissions":
+                let toolUseId = payload["call_id"] as? String
+                var toolInput = payload
+                toolInput.removeValue(forKey: "type")
+                result.events = [
+                    ClaudeEvent(
+                        hookEventName: HookEventType.permissionRequest.rawValue,
+                        sessionId: sessionId,
+                        cwd: workingContext.cwd,
+                        toolName: "request_permissions",
+                        toolInput: codableMap(toolInput),
+                        toolUseId: toolUseId,
+                        message: codexPermissionMessage(toolName: "request_permissions", arguments: toolInput),
+                        source: source
+                    ),
+                ]
+            case "exec_approval_request":
+                let toolUseId = payload["call_id"] as? String
+                let toolInput = codexExecApprovalInput(payload: payload)
+                result.events = [
+                    ClaudeEvent(
+                        hookEventName: HookEventType.preToolUse.rawValue,
+                        sessionId: sessionId,
+                        cwd: workingContext.cwd,
+                        toolName: "exec_command",
+                        toolInput: codableMap(toolInput),
+                        toolUseId: toolUseId,
+                        source: source
+                    ),
+                    ClaudeEvent(
+                        hookEventName: HookEventType.permissionRequest.rawValue,
+                        sessionId: sessionId,
+                        cwd: workingContext.cwd,
+                        toolName: "exec_command",
+                        toolInput: codableMap(toolInput),
+                        toolUseId: toolUseId,
+                        message: codexPermissionMessage(toolName: "exec_command", arguments: toolInput),
+                        source: source
+                    ),
+                ]
             default:
                 break
             }
@@ -377,8 +433,14 @@ enum CodexEventMapper {
         if let justification = arguments["justification"] as? String, !justification.isEmpty {
             return justification
         }
+        if let reason = arguments["reason"] as? String, !reason.isEmpty {
+            return reason
+        }
         if let command = arguments["cmd"] as? String, !command.isEmpty {
             return "Codex needs approval to run: \(command)"
+        }
+        if let command = arguments["command"] as? [String], !command.isEmpty {
+            return "Codex needs approval to run: \(command.joined(separator: " "))"
         }
         return "Codex needs approval to run \(toolName)"
     }
@@ -399,5 +461,17 @@ enum CodexEventMapper {
             }
         }
         return "Codex requested your input"
+    }
+
+    private static func codexExecApprovalInput(payload: [String: Any]) -> [String: Any] {
+        var input = payload
+        input.removeValue(forKey: "type")
+        if let command = payload["command"] as? [String], !command.isEmpty {
+            input["cmd"] = command.joined(separator: " ")
+        }
+        if input["sandbox_permissions"] == nil {
+            input["sandbox_permissions"] = "require_escalated"
+        }
+        return input
     }
 }
