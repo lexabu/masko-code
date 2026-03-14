@@ -4,6 +4,7 @@ import Foundation
 @Observable
 final class AppStore {
     let localServer = LocalServer()
+    let codexSessionMonitor = CodexSessionMonitor()
     let eventStore = EventStore()
     let sessionStore = SessionStore()
     let notificationStore = NotificationStore()
@@ -54,58 +55,15 @@ final class AppStore {
         localServer.onEventReceived = { [weak self] event in
             guard let self else { return }
             Task { @MainActor in
-                await self.eventProcessor.process(event)
+                await self.handleIncomingEvent(event)
+            }
+        }
 
-                // If a subsequent event arrives for a session with pending permissions,
-                // the user may have resolved a permission from the terminal — dismiss it.
-                // For postToolUse/postToolUseFailure: only dismiss the SPECIFIC tool use
-                // that completed (by toolUseId), not all permissions for the agent.
-                // For stop/userPromptSubmit: session is ending, dismiss all for that agent.
-                if let eventType = event.eventType,
-                   let sid = event.sessionId {
-                    // Cache PreToolUse toolUseId — fires immediately before PermissionRequest
-                    // for the same tool call, and carries the tool_use_id that PermissionRequest lacks.
-                    if eventType == .preToolUse,
-                       let toolUseId = event.toolUseId,
-                       let toolName = event.toolName {
-                        self.pendingPermissionStore.cachePreToolUse(
-                            sessionId: sid, agentId: event.agentId,
-                            toolName: toolName, toolUseId: toolUseId
-                        )
-                    }
-
-                    if [.stop, .userPromptSubmit].contains(eventType),
-                       self.pendingPermissionStore.pending.contains(where: {
-                           $0.event.sessionId == sid && $0.event.agentId == event.agentId
-                       }) {
-                        self.pendingPermissionStore.dismissForAgent(sessionId: sid, agentId: event.agentId)
-                    } else if [.postToolUse, .postToolUseFailure].contains(eventType),
-                              let toolUseId = event.toolUseId {
-                        // Only dismiss the specific permission whose tool was just executed
-                        // (i.e. user answered from terminal, not from the overlay).
-                        self.pendingPermissionStore.dismissByToolUseId(sessionId: sid, toolUseId: toolUseId)
-                    }
-                }
-
-                // Show "task completed" toast when Claude finishes (skip interrupts)
-                if event.eventType == .stop,
-                   event.reason != "interrupted",
-                   !self.pendingPermissionStore.pending.contains(where: { $0.event.sessionId == event.sessionId }) {
-                    self.sessionFinishedStore.show(
-                        sessionId: event.sessionId ?? "",
-                        projectName: event.projectName ?? "Project"
-                    )
-                    self.syncActiveCard()
-                    // Trigger overlay panel reposition after SwiftUI renders the toast
-                    self.onToastChanged?()
-                }
-
-                // Dismiss toast when user starts typing (already back in the loop)
-                if event.eventType == .userPromptSubmit {
-                    self.sessionFinishedStore.dismiss()
-                }
-
-                self.onEventForOverlay?(event)
+        // Wire Codex session logs → shared event pipeline
+        codexSessionMonitor.onEventReceived = { [weak self] event in
+            guard let self else { return }
+            Task { @MainActor in
+                await self.handleIncomingEvent(event)
             }
         }
 
@@ -296,6 +254,62 @@ final class AppStore {
         }
     }
 
+    @MainActor
+    private func handleIncomingEvent(_ event: ClaudeEvent) async {
+        await eventProcessor.process(event)
+
+        // If a subsequent event arrives for a session with pending permissions,
+        // the user may have resolved a permission from the terminal — dismiss it.
+        // For postToolUse/postToolUseFailure: only dismiss the SPECIFIC tool use
+        // that completed (by toolUseId), not all permissions for the agent.
+        // For stop/userPromptSubmit: session is ending, dismiss all for that agent.
+        if let eventType = event.eventType,
+           let sid = event.sessionId {
+            // Cache PreToolUse toolUseId — fires immediately before PermissionRequest
+            // for the same tool call, and carries the tool_use_id that PermissionRequest lacks.
+            if eventType == .preToolUse,
+               let toolUseId = event.toolUseId,
+               let toolName = event.toolName {
+                pendingPermissionStore.cachePreToolUse(
+                    sessionId: sid, agentId: event.agentId,
+                    toolName: toolName, toolUseId: toolUseId
+                )
+            }
+
+            if [.stop, .userPromptSubmit].contains(eventType),
+               pendingPermissionStore.pending.contains(where: {
+                   $0.event.sessionId == sid && $0.event.agentId == event.agentId
+               }) {
+                pendingPermissionStore.dismissForAgent(sessionId: sid, agentId: event.agentId)
+            } else if [.postToolUse, .postToolUseFailure].contains(eventType),
+                      let toolUseId = event.toolUseId {
+                // Only dismiss the specific permission whose tool was just executed
+                // (i.e. user answered from terminal, not from the overlay).
+                pendingPermissionStore.dismissByToolUseId(sessionId: sid, toolUseId: toolUseId)
+            }
+        }
+
+        // Show "task completed" toast when assistant finishes (skip interrupts)
+        if event.eventType == .stop,
+           event.reason != "interrupted",
+           !pendingPermissionStore.pending.contains(where: { $0.event.sessionId == event.sessionId }) {
+            sessionFinishedStore.show(
+                sessionId: event.sessionId ?? "",
+                projectName: event.projectName ?? "Project"
+            )
+            syncActiveCard()
+            // Trigger overlay panel reposition after SwiftUI renders the toast
+            onToastChanged?()
+        }
+
+        // Dismiss toast when user starts typing (already back in the loop)
+        if event.eventType == .userPromptSubmit {
+            sessionFinishedStore.dismiss()
+        }
+
+        onEventForOverlay?(event)
+    }
+
     /// Recompute which overlay card has priority and sync to the hotkey shared state.
     /// Call whenever any card's visibility changes.
     func syncActiveCard() {
@@ -340,6 +354,7 @@ final class AppStore {
         } catch {
             print("[masko-desktop] Failed to start local server: \(error)")
         }
+        codexSessionMonitor.start(bootstrapRecentFiles: sessionStore.activeSessions.isEmpty)
 
         // Reconcile sessions when app comes to foreground (crash recovery).
         // Throttled to at most once per 30 seconds — this notification fires on every
@@ -380,6 +395,7 @@ final class AppStore {
     /// Tear down server and timers to prevent zombie processes
     func stop() {
         localServer.stop()
+        codexSessionMonitor.stop()
         sessionStore.stopTimers()
         pendingPermissionStore.stopTimers()
         hotkeyManager.stop()

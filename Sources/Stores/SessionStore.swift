@@ -36,6 +36,14 @@ struct ClaudeSession: Identifiable, Codable {
 final class SessionStore {
     private(set) var sessions: [ClaudeSession] = []
     private static let filename = "sessions.json"
+    static let assistantProcessMatchers: [[String]] = [
+        ["-x", "claude"],
+        ["-x", "codex"],
+        // Codex desktop runs as an app bundle process (not "Codex Desktop").
+        ["-f", "Codex.app"],
+        // Keep legacy matcher for compatibility with older process naming.
+        ["-f", "Codex Desktop"],
+    ]
     private var reconcileTimer: Timer?
     private var interruptWatcherTimer: Timer?
 
@@ -50,7 +58,7 @@ final class SessionStore {
         startInterruptWatcher()
     }
 
-    /// Safety net: check every 2 minutes if Claude processes are still alive.
+    /// Safety net: check every 2 minutes if assistant processes are still alive.
     /// Catches the edge case where SessionEnd hook was never delivered (crash, SIGKILL).
     private func startReconcileTimer() {
         reconcileTimer = Timer.scheduledTimer(withTimeInterval: 120, repeats: true) { [weak self] _ in
@@ -185,26 +193,26 @@ final class SessionStore {
 
     // MARK: - Crash Recovery
 
-    /// Check for crashed Claude processes and mark orphaned sessions as ended.
+    /// Check for crashed assistant processes and mark orphaned sessions as ended.
     /// Called on init and when the app comes to foreground.
     func reconcileIfNeeded() {
         guard !activeSessions.isEmpty else { return }
 
-        // Run pgrep on a background thread to avoid blocking the UI
-        checkForClaudeProcesses { [weak self] hasClaudeProcess in
+        // Run process checks on a background thread to avoid blocking the UI
+        checkForAssistantProcesses { [weak self] hasAssistantProcess in
             DispatchQueue.main.async {
-                self?.applyReconciliation(hasClaudeProcess: hasClaudeProcess)
+                self?.applyReconciliation(hasAssistantProcess: hasAssistantProcess)
             }
         }
     }
 
-    private func applyReconciliation(hasClaudeProcess: Bool) {
+    private func applyReconciliation(hasAssistantProcess: Bool) {
         guard !activeSessions.isEmpty else { return }
 
         var changed = false
 
-        // 1. If no Claude process at all, end everything
-        if !hasClaudeProcess {
+        // 1. If no assistant process at all, end everything
+        if !hasAssistantProcess {
             for i in sessions.indices where sessions[i].status == .active {
                 sessions[i].status = .ended
                 sessions[i].phase = .idle
@@ -214,7 +222,7 @@ final class SessionStore {
             }
         } else {
             // 2. End individual sessions that are stale (no events in 10+ minutes).
-            // A claude process exists for a different session — but these old ones are dead.
+            // A process exists for a different session — but these old ones are dead.
             let staleThreshold: TimeInterval = 600 // 10 minutes
             let now = Date()
             for i in sessions.indices where sessions[i].status == .active {
@@ -235,22 +243,29 @@ final class SessionStore {
         }
     }
 
-    /// Check if any `claude` CLI processes are running via pgrep (exact name match).
+    /// Check if any Claude or Codex process is running.
     /// Runs on a background thread to avoid blocking the main/UI thread.
-    private func checkForClaudeProcesses(completion: @escaping (Bool) -> Void) {
+    private func checkForAssistantProcesses(completion: @escaping (Bool) -> Void) {
         DispatchQueue.global(qos: .utility).async {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
-            process.arguments = ["-x", "claude"] // exact match — won't match masko-desktop
-            process.standardOutput = FileHandle.nullDevice
-            process.standardError = FileHandle.nullDevice
-            do {
-                try process.run()
-                process.waitUntilExit()
-                completion(process.terminationStatus == 0) // 0 = found matches
-            } catch {
-                completion(false)
+            let hasAssistant = Self.assistantProcessMatchers.contains { matcher in
+                Self.isProcessRunning(arguments: matcher)
             }
+            completion(hasAssistant)
+        }
+    }
+
+    private static func isProcessRunning(arguments: [String]) -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+        process.arguments = arguments
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0 // 0 = found matches
+        } catch {
+            return false
         }
     }
 

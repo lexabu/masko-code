@@ -28,7 +28,7 @@ struct ApprovalRequestView: View {
                     Text("No Approvals")
                         .font(Constants.heading(size: 22, weight: .semibold))
                         .foregroundColor(Constants.textPrimary)
-                    Text("Permission requests from Claude Code will appear here")
+                    Text("Permission requests from supported assistants will appear here")
                         .font(Constants.body(size: 14))
                         .foregroundColor(Constants.textMuted)
                     Spacer()

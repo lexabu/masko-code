@@ -46,7 +46,7 @@ struct ActivityFeedView: View {
                     Text("No Events")
                         .font(Constants.heading(size: 22, weight: .semibold))
                         .foregroundColor(Constants.textPrimary)
-                    Text("Claude Code hook events will appear here in real-time")
+                    Text("Claude Code and Codex events will appear here in real-time")
                         .font(Constants.body(size: 14))
                         .foregroundColor(Constants.textMuted)
                     Spacer()

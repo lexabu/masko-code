@@ -15,7 +15,7 @@ struct SessionListView: View {
                     Text("No Sessions")
                         .font(Constants.heading(size: 22, weight: .semibold))
                         .foregroundColor(Constants.textPrimary)
-                    Text("Claude Code sessions will appear here when hooks are active")
+                    Text("Claude Code and Codex sessions will appear here")
                         .font(Constants.body(size: 14))
                         .foregroundColor(Constants.textMuted)
                     Spacer()

@@ -59,6 +59,36 @@ struct ClaudeEvent: Identifiable, Codable {
         cwd.flatMap { URL(fileURLWithPath: $0).lastPathComponent }
     }
 
+    enum AssistantClientKind {
+        case claude
+        case codexCLI
+        case codexDesktop
+        case codex
+    }
+
+    var assistantClientKind: AssistantClientKind {
+        let value = source?.lowercased() ?? ""
+        if value.contains("codex-desktop") || value == "vscode" || value.contains("desktop") {
+            return .codexDesktop
+        }
+        if value.contains("codex-cli") || value == "cli" || value.contains("codex_cli") {
+            return .codexCLI
+        }
+        if value.contains("codex") {
+            return .codex
+        }
+        return .claude
+    }
+
+    var assistantDisplayName: String {
+        switch assistantClientKind {
+        case .claude:
+            return "Claude Code"
+        case .codexCLI, .codexDesktop, .codex:
+            return "Codex"
+        }
+    }
+
     enum CodingKeys: String, CodingKey {
         case hookEventName = "hook_event_name"
         case sessionId = "session_id"

@@ -14,7 +14,7 @@ struct NotificationCenterView: View {
                     Text("No Notifications")
                         .font(Constants.heading(size: 22, weight: .semibold))
                         .foregroundColor(Constants.textPrimary)
-                    Text("Notifications from Claude Code will appear here")
+                    Text("Notifications from Claude Code and Codex will appear here")
                         .font(Constants.body(size: 14))
                         .foregroundColor(Constants.textMuted)
                     Spacer()

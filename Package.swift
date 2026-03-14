@@ -23,6 +23,11 @@ let package = Package(
                 .copy("Resources/Defaults"),
                 .copy("Resources/Extensions")
             ]
+        ),
+        .testTarget(
+            name: "masko-codeTests",
+            dependencies: ["masko-code"],
+            path: "Tests"
         )
     ]
 )

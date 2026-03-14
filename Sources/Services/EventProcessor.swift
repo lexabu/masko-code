@@ -38,15 +38,15 @@ final class EventProcessor {
             case "permission_prompt":
                 return AppNotification(
                     title: "Permission Required",
-                    body: event.message ?? "Claude Code needs your approval to proceed",
+                    body: event.message ?? "\(event.assistantDisplayName) needs your approval to proceed",
                     category: .permissionRequest,
                     priority: .urgent,
                     sessionId: event.sessionId
                 )
             case "idle_prompt":
                 return AppNotification(
-                    title: "Claude is Waiting",
-                    body: event.message ?? "Claude Code has been idle in \(event.projectName ?? "a project")",
+                    title: "\(event.assistantDisplayName) is Waiting",
+                    body: event.message ?? "\(event.assistantDisplayName) has been idle in \(event.projectName ?? "a project")",
                     category: .idleAlert,
                     priority: .high,
                     sessionId: event.sessionId
@@ -54,7 +54,7 @@ final class EventProcessor {
             case "elicitation_dialog":
                 return AppNotification(
                     title: "Input Needed",
-                    body: event.message ?? "Claude Code needs your input",
+                    body: event.message ?? "\(event.assistantDisplayName) needs your input",
                     category: .elicitationDialog,
                     priority: .high,
                     sessionId: event.sessionId
@@ -74,7 +74,7 @@ final class EventProcessor {
                let questionText = qDict["question"] as? String {
                 body = questionText
             } else {
-                body = "Claude wants to use \(event.toolName ?? "a tool") in \(event.projectName ?? "a project")"
+                body = "\(event.assistantDisplayName) wants to use \(event.toolName ?? "a tool") in \(event.projectName ?? "a project")"
             }
             return AppNotification(
                 title: event.toolName == "AskUserQuestion" ? "Question" : "Permission Requested",
@@ -88,7 +88,7 @@ final class EventProcessor {
             return AppNotification(
                 title: "Task Completed",
                 body: truncate(event.lastAssistantMessage, maxLength: 100)
-                    ?? "Claude Code finished in \(event.projectName ?? "a project")",
+                    ?? "\(event.assistantDisplayName) finished in \(event.projectName ?? "a project")",
                 category: .sessionLifecycle,
                 priority: .normal,
                 sessionId: event.sessionId
@@ -133,7 +133,7 @@ final class EventProcessor {
         case .preCompact:
             return AppNotification(
                 title: "Context Compacting",
-                body: "Claude Code is compacting context in \(event.projectName ?? "a project")",
+                body: "\(event.assistantDisplayName) is compacting context in \(event.projectName ?? "a project")",
                 category: .sessionLifecycle,
                 priority: .low,
                 sessionId: event.sessionId
