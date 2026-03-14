@@ -231,6 +231,19 @@ enum CodexEventMapper {
                         source: source
                     )
                 )
+            } else if isRequestUserInput(toolName: toolName, arguments: arguments) {
+                events.append(
+                    ClaudeEvent(
+                        hookEventName: HookEventType.permissionRequest.rawValue,
+                        sessionId: sessionId,
+                        cwd: cwd,
+                        toolName: "AskUserQuestion",
+                        toolInput: codableMap(arguments),
+                        toolUseId: toolUseId,
+                        message: codexQuestionMessage(arguments: arguments),
+                        source: source
+                    )
+                )
             }
             return events
 
@@ -291,6 +304,19 @@ enum CodexEventMapper {
                     source: source
                 )
             )
+        } else if isRequestUserInput(toolName: toolName, arguments: arguments) {
+            events.append(
+                ClaudeEvent(
+                    hookEventName: HookEventType.permissionRequest.rawValue,
+                    sessionId: sessionId,
+                    cwd: cwd,
+                    toolName: "AskUserQuestion",
+                    toolInput: codableMap(arguments),
+                    toolUseId: toolUseId,
+                    message: codexQuestionMessage(arguments: arguments),
+                    source: source
+                )
+            )
         }
         return events
     }
@@ -342,6 +368,11 @@ enum CodexEventMapper {
         return rawValue.lowercased() == "require_escalated"
     }
 
+    private static func isRequestUserInput(toolName: String, arguments: [String: Any]) -> Bool {
+        guard toolName == "request_user_input" else { return false }
+        return arguments["questions"] != nil
+    }
+
     private static func codexPermissionMessage(toolName: String, arguments: [String: Any]) -> String {
         if let justification = arguments["justification"] as? String, !justification.isEmpty {
             return justification
@@ -350,5 +381,23 @@ enum CodexEventMapper {
             return "Codex needs approval to run: \(command)"
         }
         return "Codex needs approval to run \(toolName)"
+    }
+
+    private static func codexQuestionMessage(arguments: [String: Any]) -> String? {
+        if let questions = arguments["questions"] as? [[String: Any]],
+           let first = questions.first,
+           let question = first["question"] as? String,
+           !question.isEmpty {
+            return question
+        }
+        if let questions = arguments["questions"] as? [Any] {
+            for element in questions {
+                if let question = (element as? [String: Any])?["question"] as? String,
+                   !question.isEmpty {
+                    return question
+                }
+            }
+        }
+        return "Codex requested your input"
     }
 }

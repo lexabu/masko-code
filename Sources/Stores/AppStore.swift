@@ -275,8 +275,8 @@ final class AppStore {
         // Queue them as local pending permissions so mascot approval UI can handle them.
         if event.eventType == .permissionRequest,
            event.assistantClientKind != .claude {
-            pendingPermissionStore.addLocal(event: event) { [weak self] decision in
-                self?.handleLocalCodexPermissionDecision(event: event, decision: decision) ?? false
+            pendingPermissionStore.addLocal(event: event) { [weak self] resolution in
+                self?.handleLocalCodexPermissionResolution(event: event, resolution: resolution) ?? false
             }
         }
 
@@ -332,13 +332,20 @@ final class AppStore {
         onEventForOverlay?(event)
     }
 
-    private func handleLocalCodexPermissionDecision(event: ClaudeEvent, decision: PermissionDecision) -> Bool {
+    private func handleLocalCodexPermissionResolution(event: ClaudeEvent, resolution: LocalPermissionResolution) -> Bool {
         // Current Codex integration is one-way (session logs), so we record the decision
         // locally to drive overlay state until a bidirectional approval channel is available.
-        print(
-            "[masko-desktop] Codex local permission \(decision.rawValue): " +
-            "\(event.toolName ?? "unknown") session=\(event.sessionId ?? "unknown")"
-        )
+        let session = event.sessionId ?? "unknown"
+        switch resolution {
+        case .decision(let decision):
+            print("[masko-desktop] Codex local permission \(decision.rawValue): \(event.toolName ?? "unknown") session=\(session)")
+        case .answers(let answers):
+            print("[masko-desktop] Codex local answers captured for session=\(session): \(answers.keys.sorted())")
+        case .feedback(let feedback):
+            print("[masko-desktop] Codex local feedback captured for session=\(session): \(feedback.prefix(80))")
+        case .permissionSuggestions(let suggestions):
+            print("[masko-desktop] Codex local permission suggestions captured for session=\(session): \(suggestions.count)")
+        }
         return true
     }
 

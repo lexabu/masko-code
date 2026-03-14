@@ -1,7 +1,14 @@
 import Foundation
 import Network
 
-typealias LocalPermissionDecisionHandler = (PermissionDecision) -> Bool
+enum LocalPermissionResolution {
+    case decision(PermissionDecision)
+    case answers([String: String])
+    case feedback(String)
+    case permissionSuggestions([PermissionSuggestion])
+}
+
+typealias LocalPermissionResolutionHandler = (LocalPermissionResolution) -> Bool
 
 // MARK: - Permission suggestion model (matches Claude Code protocol)
 
@@ -72,7 +79,7 @@ struct PendingPermission: Identifiable {
     let id: UUID
     let event: ClaudeEvent
     let connection: NWConnection?
-    let localDecisionHandler: LocalPermissionDecisionHandler?
+    let localResolutionHandler: LocalPermissionResolutionHandler?
     let receivedAt: Date
     /// tool_use_id correlated from the preceding PreToolUse event
     /// (PermissionRequest events from Claude Code don't include tool_use_id)
@@ -393,7 +400,7 @@ final class PendingPermissionStore {
             id: UUID(),
             event: event,
             connection: connection,
-            localDecisionHandler: nil,
+            localResolutionHandler: nil,
             receivedAt: Date(),
             resolvedToolUseId: resolvedToolUseId
         )
@@ -409,7 +416,7 @@ final class PendingPermissionStore {
     }
 
     /// Add a local (non-hook-connection) permission request, used for Codex log-derived escalations.
-    func addLocal(event: ClaudeEvent, onDecision: @escaping LocalPermissionDecisionHandler) {
+    func addLocal(event: ClaudeEvent, onResolve: @escaping LocalPermissionResolutionHandler) {
         let resolvedToolUseId = event.toolUseId
         if isDuplicate(event: event, resolvedToolUseId: resolvedToolUseId) {
             return
@@ -419,7 +426,7 @@ final class PendingPermissionStore {
             id: UUID(),
             event: event,
             connection: nil,
-            localDecisionHandler: onDecision,
+            localResolutionHandler: onResolve,
             receivedAt: Date(),
             resolvedToolUseId: resolvedToolUseId
         )
@@ -594,9 +601,9 @@ final class PendingPermissionStore {
             connection.send(content: response.data(using: .utf8), completion: .contentProcessed { _ in
                 connection.cancel()
             })
-        } else if let localDecisionHandler = permission.localDecisionHandler {
+        } else if let localResolutionHandler = permission.localResolutionHandler {
             // Local resolver (Codex log-derived path)
-            let wasHandled = localDecisionHandler(decision)
+            let wasHandled = localResolutionHandler(.decision(decision))
             if !wasHandled {
                 print("[masko-desktop] Local permission decision could not be delivered for \(permission.toolName)")
                 return
@@ -617,10 +624,21 @@ final class PendingPermissionStore {
     func resolveWithAnswers(id: UUID, answers: [String: String]) {
         guard let index = pending.firstIndex(where: { $0.id == id }) else { return }
         let permission = pending[index]
-        guard let connection = permission.connection else {
-            resolve(id: id, decision: .allow)
+        if let localResolutionHandler = permission.localResolutionHandler {
+            let wasHandled = localResolutionHandler(.answers(answers))
+            if !wasHandled {
+                print("[masko-desktop] Local answers could not be delivered for \(permission.toolName)")
+                return
+            }
+            collapsed.remove(id)
+            pending.remove(at: index)
+            onPendingChange?()
+            onPendingCountChange?()
+            onResolved?(permission.event, .allowed)
+            print("[masko-desktop] Local answers resolved for \(permission.toolName) (remaining: \(pending.count))")
             return
         }
+        guard let connection = permission.connection else { return }
 
         collapsed.remove(id)
 
@@ -663,10 +681,21 @@ final class PendingPermissionStore {
     func resolveWithFeedback(id: UUID, feedback: String) {
         guard let index = pending.firstIndex(where: { $0.id == id }) else { return }
         let permission = pending[index]
-        guard let connection = permission.connection else {
-            resolve(id: id, decision: .allow)
+        if let localResolutionHandler = permission.localResolutionHandler {
+            let wasHandled = localResolutionHandler(.feedback(feedback))
+            if !wasHandled {
+                print("[masko-desktop] Local feedback could not be delivered for \(permission.toolName)")
+                return
+            }
+            collapsed.remove(id)
+            pending.remove(at: index)
+            onPendingChange?()
+            onPendingCountChange?()
+            onResolved?(permission.event, .allowed)
+            print("[masko-desktop] Local feedback resolved for \(permission.toolName) (remaining: \(pending.count))")
             return
         }
+        guard let connection = permission.connection else { return }
 
         collapsed.remove(id)
 
@@ -707,10 +736,21 @@ final class PendingPermissionStore {
     func resolveWithPermissions(id: UUID, suggestions: [PermissionSuggestion]) {
         guard let index = pending.firstIndex(where: { $0.id == id }) else { return }
         let permission = pending[index]
-        guard let connection = permission.connection else {
-            resolve(id: id, decision: .allow)
+        if let localResolutionHandler = permission.localResolutionHandler {
+            let wasHandled = localResolutionHandler(.permissionSuggestions(suggestions))
+            if !wasHandled {
+                print("[masko-desktop] Local permission suggestions could not be delivered for \(permission.toolName)")
+                return
+            }
+            collapsed.remove(id)
+            pending.remove(at: index)
+            onPendingChange?()
+            onPendingCountChange?()
+            onResolved?(permission.event, .allowed)
+            print("[masko-desktop] Local permission suggestions resolved for \(permission.toolName) (remaining: \(pending.count))")
             return
         }
+        guard let connection = permission.connection else { return }
 
         collapsed.remove(id)
 

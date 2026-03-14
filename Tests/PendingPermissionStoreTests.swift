@@ -10,7 +10,8 @@ final class PendingPermissionStoreTests: XCTestCase {
         var handledDecisions: [PermissionDecision] = []
         let event = makeCodexPermissionEvent(toolUseId: "call_1", cmd: "git push")
 
-        store.addLocal(event: event) { decision in
+        store.addLocal(event: event) { resolution in
+            guard case .decision(let decision) = resolution else { return false }
             handledDecisions.append(decision)
             return true
         }
@@ -50,19 +51,67 @@ final class PendingPermissionStoreTests: XCTestCase {
         XCTAssertEqual(store.pending.first?.event.toolInput?["cmd"]?.stringValue, "git push")
     }
 
-    func testResolveWithAnswersFallsBackToAllowForLocalPermission() throws {
+    func testResolveWithAnswersUsesLocalResolutionHandler() throws {
         let store = PendingPermissionStore()
         defer { store.stopTimers() }
 
         var handled = false
         let event = makeCodexPermissionEvent(toolUseId: "call_3", cmd: "scripts/codex-mascot-smoke.sh")
-        store.addLocal(event: event) { decision in
-            handled = (decision == .allow)
-            return true
+        store.addLocal(event: event) { resolution in
+            if case .answers(let answers) = resolution {
+                handled = answers["q1"] == "yes"
+                return true
+            }
+            return false
         }
         let id = try XCTUnwrap(store.pending.first?.id)
 
         store.resolveWithAnswers(id: id, answers: ["q1": "yes"])
+
+        XCTAssertTrue(handled)
+        XCTAssertEqual(store.pending.count, 0)
+    }
+
+    func testResolveWithFeedbackUsesLocalResolutionHandler() throws {
+        let store = PendingPermissionStore()
+        defer { store.stopTimers() }
+
+        var handled = false
+        let event = makeCodexPermissionEvent(toolUseId: "call_4", cmd: "update plan")
+        store.addLocal(event: event) { resolution in
+            if case .feedback(let feedback) = resolution {
+                handled = feedback == "Please trim this down."
+                return true
+            }
+            return false
+        }
+        let id = try XCTUnwrap(store.pending.first?.id)
+
+        store.resolveWithFeedback(id: id, feedback: "Please trim this down.")
+
+        XCTAssertTrue(handled)
+        XCTAssertEqual(store.pending.count, 0)
+    }
+
+    func testResolveWithPermissionsUsesLocalResolutionHandler() throws {
+        let store = PendingPermissionStore()
+        defer { store.stopTimers() }
+
+        var handled = false
+        let event = makeCodexPermissionEvent(toolUseId: "call_5", cmd: "git push")
+        store.addLocal(event: event) { resolution in
+            if case .permissionSuggestions(let suggestions) = resolution {
+                handled = suggestions.count == 1 && suggestions.first?.type == "setMode"
+                return true
+            }
+            return false
+        }
+        let id = try XCTUnwrap(store.pending.first?.id)
+
+        let suggestions = [
+            PermissionSuggestion(type: "setMode", destination: "session", behavior: nil, rules: nil, mode: "acceptEdits"),
+        ]
+        store.resolveWithPermissions(id: id, suggestions: suggestions)
 
         XCTAssertTrue(handled)
         XCTAssertEqual(store.pending.count, 0)
