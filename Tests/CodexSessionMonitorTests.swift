@@ -184,9 +184,10 @@ final class CodexSessionMonitorTests: XCTestCase {
             HookEventType.preToolUse.rawValue,
             HookEventType.postToolUse.rawValue,
             HookEventType.stop.rawValue,
+            HookEventType.taskCompleted.rawValue,
         ])
         XCTAssertEqual(events.first?.source, "codex-cli")
-        XCTAssertEqual(events.last?.lastAssistantMessage, "Done")
+        XCTAssertEqual(events[4].lastAssistantMessage, "Done")
     }
 
     func testMonitorOnlyEmitsAppendedLines() throws {
@@ -219,8 +220,9 @@ final class CodexSessionMonitorTests: XCTestCase {
         try appendLine(#"{"type":"event_msg","payload":{"type":"task_complete","turn_id":"turn_1","last_agent_message":"Done"}}"#, to: fileURL)
         monitor.pollOnce()
 
-        XCTAssertEqual(events.count, 3)
-        XCTAssertEqual(events.last?.hookEventName, HookEventType.stop.rawValue)
+        XCTAssertEqual(events.count, 4)
+        XCTAssertEqual(events[2].hookEventName, HookEventType.stop.rawValue)
+        XCTAssertEqual(events[3].hookEventName, HookEventType.taskCompleted.rawValue)
     }
 
     func testMonitorMapsCompactedRecordToPreCompact() throws {

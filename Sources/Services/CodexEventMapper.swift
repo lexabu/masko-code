@@ -124,6 +124,7 @@ enum CodexEventMapper {
                     ),
                 ]
             case "task_complete":
+                let lastMessage = payload["last_agent_message"] as? String
                 result.events = [
                     ClaudeEvent(
                         hookEventName: HookEventType.stop.rawValue,
@@ -131,7 +132,15 @@ enum CodexEventMapper {
                         cwd: workingContext.cwd,
                         source: source,
                         reason: "completed",
-                        lastAssistantMessage: payload["last_agent_message"] as? String
+                        lastAssistantMessage: lastMessage
+                    ),
+                    ClaudeEvent(
+                        hookEventName: HookEventType.taskCompleted.rawValue,
+                        sessionId: sessionId,
+                        cwd: workingContext.cwd,
+                        source: source,
+                        taskId: payload["turn_id"] as? String,
+                        taskSubject: codexTaskSubject(from: lastMessage)
                     ),
                 ]
             case "turn_aborted":
@@ -265,6 +274,33 @@ enum CodexEventMapper {
                         toolResponse: codableMap(responsePayload),
                         toolUseId: toolUseId,
                         source: source
+                    ),
+                ]
+            case "context_compacted":
+                result.events = [
+                    ClaudeEvent(
+                        hookEventName: HookEventType.preCompact.rawValue,
+                        sessionId: sessionId,
+                        cwd: workingContext.cwd,
+                        source: source,
+                        reason: "context_compacted"
+                    ),
+                ]
+            case "item_completed":
+                result.events = mapItemCompletedEvent(
+                    payload: payload,
+                    sessionId: sessionId,
+                    cwd: workingContext.cwd,
+                    source: source
+                )
+            case "entered_review_mode", "exited_review_mode":
+                result.events = [
+                    ClaudeEvent(
+                        hookEventName: HookEventType.configChange.rawValue,
+                        sessionId: sessionId,
+                        cwd: workingContext.cwd,
+                        source: source,
+                        reason: messageType
                     ),
                 ]
             default:
@@ -548,5 +584,40 @@ enum CodexEventMapper {
         if let name = invocation["tool"] as? String, !name.isEmpty { return name }
         if let name = invocation["name"] as? String, !name.isEmpty { return name }
         return nil
+    }
+
+    private static func mapItemCompletedEvent(
+        payload: [String: Any],
+        sessionId: String,
+        cwd: String?,
+        source: String
+    ) -> [ClaudeEvent] {
+        let taskId = payload["turn_id"] as? String
+        var subject: String?
+        if let item = payload["item"] as? [String: Any] {
+            if let text = item["text"] as? String {
+                subject = codexTaskSubject(from: text)
+            } else if let itemType = item["type"] as? String, !itemType.isEmpty {
+                subject = itemType
+            }
+        }
+
+        return [
+            ClaudeEvent(
+                hookEventName: HookEventType.taskCompleted.rawValue,
+                sessionId: sessionId,
+                cwd: cwd,
+                source: source,
+                taskId: taskId,
+                taskSubject: subject
+            ),
+        ]
+    }
+
+    private static func codexTaskSubject(from text: String?) -> String? {
+        guard let text else { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return trimmed.components(separatedBy: .newlines).first
     }
 }

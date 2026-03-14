@@ -70,10 +70,13 @@ final class CodexEventMapperTests: XCTestCase {
         {"type":"event_msg","payload":{"type":"task_complete","turn_id":"turn_123","last_agent_message":"Done"}}
         """
         let stopResult = CodexEventMapper.parse(line: stopLine, fileURL: fileURL, context: context)
-        XCTAssertEqual(stopResult.events.count, 1)
+        XCTAssertEqual(stopResult.events.count, 2)
         XCTAssertEqual(stopResult.events.first?.hookEventName, HookEventType.stop.rawValue)
         XCTAssertEqual(stopResult.events.first?.reason, "completed")
         XCTAssertEqual(stopResult.events.first?.lastAssistantMessage, "Done")
+        XCTAssertEqual(stopResult.events.last?.hookEventName, HookEventType.taskCompleted.rawValue)
+        XCTAssertEqual(stopResult.events.last?.taskId, "turn_123")
+        XCTAssertEqual(stopResult.events.last?.taskSubject, "Done")
     }
 
     func testEventMsgRequestUserInputMapsToQuestionPermissionRequest() throws {
@@ -182,6 +185,74 @@ final class CodexEventMapperTests: XCTestCase {
         XCTAssertEqual(result.events.first?.hookEventName, HookEventType.preCompact.rawValue)
         XCTAssertEqual(result.events.first?.source, "codex-cli")
         XCTAssertEqual(result.events.first?.reason, "context_compacted")
+    }
+
+    func testContextCompactedEventMessageMapsToPreCompact() throws {
+        let sessionId = "019cd686-3b91-78a1-9356-21b475548352"
+        let context = CodexSessionContext(
+            sessionId: sessionId,
+            cwd: "/Users/test/project",
+            source: "cli",
+            originator: "codex_cli_rs"
+        )
+        let fileURL = URL(fileURLWithPath: "/tmp/rollout-2026-03-09T23-54-07-\(sessionId).jsonl")
+        let line = """
+        {"type":"event_msg","payload":{"type":"context_compacted"}}
+        """
+
+        let result = CodexEventMapper.parse(line: line, fileURL: fileURL, context: context)
+
+        XCTAssertEqual(result.events.count, 1)
+        XCTAssertEqual(result.events.first?.hookEventName, HookEventType.preCompact.rawValue)
+        XCTAssertEqual(result.events.first?.reason, "context_compacted")
+    }
+
+    func testItemCompletedMapsToTaskCompleted() throws {
+        let sessionId = "019cd686-3b91-78a1-9356-21b475548352"
+        let context = CodexSessionContext(
+            sessionId: sessionId,
+            cwd: "/Users/test/project",
+            source: "cli",
+            originator: "codex_cli_rs"
+        )
+        let fileURL = URL(fileURLWithPath: "/tmp/rollout-2026-03-09T23-54-07-\(sessionId).jsonl")
+        let line = #"""
+        {"type":"event_msg","payload":{"type":"item_completed","turn_id":"turn_plan","item":{"type":"Plan","id":"plan_1","text":"# Do the thing\n\n- step"}}}
+        """#
+
+        let result = CodexEventMapper.parse(line: line, fileURL: fileURL, context: context)
+
+        XCTAssertEqual(result.events.count, 1)
+        XCTAssertEqual(result.events.first?.hookEventName, HookEventType.taskCompleted.rawValue)
+        XCTAssertEqual(result.events.first?.taskId, "turn_plan")
+        XCTAssertEqual(result.events.first?.taskSubject, "# Do the thing")
+    }
+
+    func testReviewModeEventsMapToConfigChange() throws {
+        let sessionId = "019cd686-3b91-78a1-9356-21b475548352"
+        let context = CodexSessionContext(
+            sessionId: sessionId,
+            cwd: "/Users/test/project",
+            source: "cli",
+            originator: "codex_cli_rs"
+        )
+        let fileURL = URL(fileURLWithPath: "/tmp/rollout-2026-03-09T23-54-07-\(sessionId).jsonl")
+
+        let enteredLine = #"""
+        {"type":"event_msg","payload":{"type":"entered_review_mode","target":{"type":"uncommittedChanges"}}}
+        """#
+        let entered = CodexEventMapper.parse(line: enteredLine, fileURL: fileURL, context: context)
+        XCTAssertEqual(entered.events.count, 1)
+        XCTAssertEqual(entered.events.first?.hookEventName, HookEventType.configChange.rawValue)
+        XCTAssertEqual(entered.events.first?.reason, "entered_review_mode")
+
+        let exitedLine = #"""
+        {"type":"event_msg","payload":{"type":"exited_review_mode","review_output":null}}
+        """#
+        let exited = CodexEventMapper.parse(line: exitedLine, fileURL: fileURL, context: context)
+        XCTAssertEqual(exited.events.count, 1)
+        XCTAssertEqual(exited.events.first?.hookEventName, HookEventType.configChange.rawValue)
+        XCTAssertEqual(exited.events.first?.reason, "exited_review_mode")
     }
 
     func testFunctionCallMapsToToolEvents() throws {
