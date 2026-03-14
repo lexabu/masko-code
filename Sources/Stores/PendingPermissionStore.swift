@@ -184,6 +184,8 @@ struct PendingPermission: Identifiable {
         // For Bash: show command
         if let command = input["command"]?.value as? String {
             raw = command
+        } else if let command = input["cmd"]?.value as? String {
+            raw = command
         // For Edit/Write: show file path
         } else if let path = input["file_path"]?.value as? String {
             raw = path
@@ -218,6 +220,8 @@ struct PendingPermission: Identifiable {
         // Same extraction logic as toolInputPreview but no truncation
         let raw: String
         if let command = input["command"]?.value as? String {
+            raw = command
+        } else if let command = input["cmd"]?.value as? String {
             raw = command
         } else if let content = input["content"]?.value as? String {
             raw = content

@@ -117,6 +117,32 @@ final class PendingPermissionStoreTests: XCTestCase {
         XCTAssertEqual(store.pending.count, 0)
     }
 
+    func testToolInputPreviewPrefersCodexCmdField() {
+        let permission = PendingPermission(
+            id: UUID(),
+            event: makeCodexPermissionEvent(toolUseId: "call_preview", cmd: "git push origin feat/codex-support"),
+            connection: nil,
+            localResolutionHandler: nil,
+            receivedAt: Date(),
+            resolvedToolUseId: "call_preview"
+        )
+
+        XCTAssertEqual(permission.toolInputPreview, "git push origin feat/codex-support")
+    }
+
+    func testFullToolInputTextPrefersCodexCmdField() {
+        let permission = PendingPermission(
+            id: UUID(),
+            event: makeCodexPermissionEvent(toolUseId: "call_full", cmd: "scripts/codex-mascot-smoke.sh"),
+            connection: nil,
+            localResolutionHandler: nil,
+            receivedAt: Date(),
+            resolvedToolUseId: "call_full"
+        )
+
+        XCTAssertEqual(permission.fullToolInputText, "scripts/codex-mascot-smoke.sh")
+    }
+
     private func makeCodexPermissionEvent(toolUseId: String, cmd: String) -> ClaudeEvent {
         ClaudeEvent(
             hookEventName: HookEventType.permissionRequest.rawValue,

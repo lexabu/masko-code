@@ -73,6 +73,10 @@ final class EventProcessor {
                let qDict = (firstQ as? [String: Any]) ?? (firstQ as? [String: AnyCodable])?.mapValues(\.value),
                let questionText = qDict["question"] as? String {
                 body = questionText
+            } else if event.assistantClientKind != .claude,
+                      let message = event.message,
+                      !message.isEmpty {
+                body = message
             } else {
                 body = "\(event.assistantDisplayName) wants to use \(event.toolName ?? "a tool") in \(event.projectName ?? "a project")"
             }
