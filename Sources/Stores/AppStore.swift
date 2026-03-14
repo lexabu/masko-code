@@ -3,6 +3,11 @@ import Foundation
 
 @Observable
 final class AppStore {
+    struct AssistantEventIngestionStatus {
+        let isActive: Bool
+        let text: String
+    }
+
     let localServer = LocalServer()
     let codexSessionMonitor = CodexSessionMonitor()
     let eventStore = EventStore()
@@ -37,20 +42,38 @@ final class AppStore {
     /// Set by URL handler to navigate to a mascot after install
     var navigateToMascotId: UUID?
 
-    var hasUnreadNotifications: Bool { notificationStore.unreadCount > 0 }
-    var isAssistantEventIngestionActive: Bool { localServer.isRunning || codexSessionMonitor.isRunning }
-    var assistantEventIngestionStatusText: String {
-        switch (localServer.isRunning, codexSessionMonitor.isRunning) {
+    static func assistantEventIngestionStatus(
+        localServerRunning: Bool,
+        localServerPort: UInt16,
+        codexMonitorRunning: Bool
+    ) -> AssistantEventIngestionStatus {
+        let text: String
+        switch (localServerRunning, codexMonitorRunning) {
         case (true, true):
-            return "Listening on \(localServer.port) + Codex logs"
+            text = "Listening on \(localServerPort) + Codex logs"
         case (true, false):
-            return "Listening on \(localServer.port)"
+            text = "Listening on \(localServerPort)"
         case (false, true):
-            return "Listening to Codex logs"
+            text = "Listening to Codex logs"
         case (false, false):
-            return "Offline"
+            text = "Offline"
         }
+        return AssistantEventIngestionStatus(
+            isActive: localServerRunning || codexMonitorRunning,
+            text: text
+        )
     }
+
+    var hasUnreadNotifications: Bool { notificationStore.unreadCount > 0 }
+    var assistantEventIngestionStatus: AssistantEventIngestionStatus {
+        Self.assistantEventIngestionStatus(
+            localServerRunning: localServer.isRunning,
+            localServerPort: localServer.port,
+            codexMonitorRunning: codexSessionMonitor.isRunning
+        )
+    }
+    var isAssistantEventIngestionActive: Bool { assistantEventIngestionStatus.isActive }
+    var assistantEventIngestionStatusText: String { assistantEventIngestionStatus.text }
 
     var hasCompletedOnboarding: Bool = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") {
         didSet { UserDefaults.standard.set(hasCompletedOnboarding, forKey: "hasCompletedOnboarding") }

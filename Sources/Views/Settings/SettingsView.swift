@@ -28,7 +28,20 @@ struct SettingsView: View {
         Form {
             Section {
                 HStack {
-                    Text("Local Server")
+                    Text("Assistant Events")
+                        .foregroundColor(Constants.textPrimary)
+                    Spacer()
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(appStore.isAssistantEventIngestionActive ? Color.green : Color.red)
+                            .frame(width: 8, height: 8)
+                        Text(appStore.assistantEventIngestionStatusText)
+                            .foregroundColor(Constants.textMuted)
+                    }
+                }
+
+                HStack {
+                    Text("Local Hook Server")
                         .foregroundColor(Constants.textPrimary)
                     Spacer()
                     HStack(spacing: 6) {
