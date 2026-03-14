@@ -5,7 +5,7 @@
 <h1 align="center">Masko Code</h1>
 
 <p align="center">
-  A living mascot that floats above your windows, reacts to Claude Code, and lets you handle everything without leaving your flow.
+  A living mascot that floats above your windows, reacts to Claude Code and Codex, and lets you handle everything without leaving your flow.
 </p>
 
 <p align="center">
@@ -27,14 +27,14 @@
 
 | | Feature | Description |
 |---|---|---|
-| 🎭 | **Animated overlay** | A mascot that floats above all windows and reacts to Claude Code state — click or hover to interact |
+| 🎭 | **Animated overlay** | A mascot that floats above all windows and reacts to Claude Code + Codex state — click or hover to interact |
 | 🔐 | **Permission handling** | Approve, deny, or defer tool use requests from a speech bubble — select with `⌘1-9`, permissions stack in a queue |
 | 💬 | **Question answering** | Answer Claude's questions directly from the overlay |
 | 📋 | **Plan review** | Review and approve plans without opening your terminal |
 | 📊 | **Session tracking** | Monitor active sessions, subagents, and status at a glance |
 | 🔔 | **Notification dashboard** | Priority levels, resolution tracking, color-coded activity feed |
 | 🖥️ | **Find the right terminal** | Jump to the correct terminal tab — supports 13 terminals and IDEs including iTerm2, Ghostty, VS Code, Cursor, and more |
-| 🔀 | **Session switcher** | Double-tap `⌘` to switch between Claude Code sessions |
+| 🔀 | **Session switcher** | Double-tap `⌘` to switch between assistant sessions |
 | 😴 | **Snooze** | Right-click to hide the mascot for 15 min, 1 hour, or indefinitely |
 | ↔️ | **Resizable** | Drag to resize or pick a preset (S / M / L / XL) from the context menu |
 | 🔄 | **Auto-updates** | Built-in Sparkle updates — always on the latest version |
@@ -43,11 +43,11 @@
 
 ```
 ┌─────────────┐     hook events     ┌─────────────┐
-│  Claude Code │ ──────────────────▶ │    Masko     │
+│ Claude/Codex │ ──────────────────▶ │    Masko     │
 │  (terminal)  │                     │  (menu bar)  │
 └─────────────┘                     └─────────────┘
         │                                   │
-        │  fires hooks on tool use,         │  updates mascot animation,
+        │  streams events from hooks/logs,  │  updates mascot animation,
         │  sessions, notifications          │  shows permission prompts,
         │                                   │  tracks sessions
         ▼                                   ▼
@@ -57,7 +57,7 @@
 1. **Download the app** — Install the DMG. Lives in your menu bar, no dock clutter.
 2. **Grant accessibility** — First launch installs Claude Code hooks automatically into `~/.claude/settings.json`.
 3. **Pick a mascot** — Choose the default Masko or bring your own from [masko.ai](https://masko.ai).
-4. **Start coding** — Open a terminal, run Claude Code. Your mascot springs to life.
+4. **Start coding** — Open Claude Code or Codex (CLI/Desktop). Your mascot springs to life.
 
 ## Keyboard Shortcuts
 
@@ -86,7 +86,7 @@ The default Masko fox is included. Want your own character? Create one on [masko
 
 ## Supported Terminals & IDEs
 
-Masko works with any terminal that runs Claude Code. Terminal focus (`⌘M`) support varies by app:
+Masko works with terminals that run Claude Code or Codex. Terminal focus (`⌘M`) support varies by app:
 
 | Level | App | How |
 |---|---|---|
@@ -100,7 +100,7 @@ Click a session in the dashboard or click the mascot overlay to jump to the righ
 
 - macOS 14.0+ (Sonoma)
 - Apple Silicon or Intel Mac
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and/or [Codex CLI](https://github.com/openai/codex) installed
 
 ## Install
 
