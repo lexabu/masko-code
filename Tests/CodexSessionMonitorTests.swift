@@ -223,6 +223,39 @@ final class CodexSessionMonitorTests: XCTestCase {
         XCTAssertEqual(events.last?.hookEventName, HookEventType.stop.rawValue)
     }
 
+    func testMonitorMapsCompactedRecordToPreCompact() throws {
+        let root = try makeTempSessionsRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let sessionId = "019cd686-3b91-78a1-9356-21b475548352"
+        let fileURL = root
+            .appendingPathComponent("2026")
+            .appendingPathComponent("03")
+            .appendingPathComponent("14")
+            .appendingPathComponent("rollout-2026-03-14T01-24-49-\(sessionId).jsonl")
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+
+        try writeLines([
+            #"{"type":"session_meta","payload":{"id":"019cd686-3b91-78a1-9356-21b475548352","cwd":"/Users/test/project","source":"cli","originator":"codex_cli_rs"}}"#,
+            #"{"type":"compacted","payload":{"message":"context compacted"}}"#,
+        ], to: fileURL)
+
+        let monitor = CodexSessionMonitor(rootURL: root, pollInterval: 999)
+        var events: [ClaudeEvent] = []
+        monitor.onEventReceived = { events.append($0) }
+
+        monitor.pollOnce()
+
+        XCTAssertEqual(events.map(\.hookEventName), [
+            HookEventType.sessionStart.rawValue,
+            HookEventType.preCompact.rawValue,
+        ])
+        XCTAssertEqual(events.last?.reason, "context_compacted")
+    }
+
     private func makeTempSessionsRoot() throws -> URL {
         let root = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("masko-codex-tests-\(UUID().uuidString)")

@@ -148,6 +148,17 @@ enum CodexEventMapper {
                 break
             }
 
+        case "compacted":
+            result.events = [
+                ClaudeEvent(
+                    hookEventName: HookEventType.preCompact.rawValue,
+                    sessionId: sessionId,
+                    cwd: workingContext.cwd,
+                    source: source,
+                    reason: "context_compacted"
+                ),
+            ]
+
         case "response_item":
             result.events = mapToolEvents(
                 payload: payload,

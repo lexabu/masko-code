@@ -76,6 +76,27 @@ final class CodexEventMapperTests: XCTestCase {
         XCTAssertEqual(stopResult.events.first?.lastAssistantMessage, "Done")
     }
 
+    func testCompactedEventMapsToPreCompact() throws {
+        let sessionId = "019cd686-3b91-78a1-9356-21b475548352"
+        let context = CodexSessionContext(
+            sessionId: sessionId,
+            cwd: "/Users/test/project",
+            source: "cli",
+            originator: "codex_cli_rs"
+        )
+        let fileURL = URL(fileURLWithPath: "/tmp/rollout-2026-03-09T23-54-07-\(sessionId).jsonl")
+        let line = """
+        {"type":"compacted","payload":{"message":"context compacted"}}
+        """
+
+        let result = CodexEventMapper.parse(line: line, fileURL: fileURL, context: context)
+
+        XCTAssertEqual(result.events.count, 1)
+        XCTAssertEqual(result.events.first?.hookEventName, HookEventType.preCompact.rawValue)
+        XCTAssertEqual(result.events.first?.source, "codex-cli")
+        XCTAssertEqual(result.events.first?.reason, "context_compacted")
+    }
+
     func testFunctionCallMapsToToolEvents() throws {
         let sessionId = "019cd686-3b91-78a1-9356-21b475548352"
         let context = CodexSessionContext(
