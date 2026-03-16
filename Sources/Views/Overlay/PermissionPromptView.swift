@@ -316,16 +316,18 @@ struct AskUserQuestionView: View {
                     if showShortcuts { ActionBadge(label: "⌘M") }
                 }
 
-                HStack(spacing: 3) {
-                    Button { onLater() } label: {
-                        Image(systemName: "clock.arrow.circlepath")
-                            .font(.system(size: 10))
-                            .foregroundStyle(OverlayStyle.textHint)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Handle later")
+                if !requiresTerminalFallback {
+                    HStack(spacing: 3) {
+                        Button { onLater() } label: {
+                            Image(systemName: "clock.arrow.circlepath")
+                                .font(.system(size: 10))
+                                .foregroundStyle(OverlayStyle.textHint)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Handle later")
 
-                    if showShortcuts { ActionBadge(label: "⌘L") }
+                        if showShortcuts { ActionBadge(label: "⌘L") }
+                    }
                 }
             }
 
@@ -344,34 +346,18 @@ struct AskUserQuestionView: View {
                     .foregroundStyle(OverlayStyle.textHint)
                     .fixedSize(horizontal: false, vertical: true)
 
-                HStack(spacing: 5) {
-                    Button {
-                        focusTerminal(pid: permission.event.terminalPid, shellPid: permission.event.shellPid, projectDir: permission.event.cwd, sessionId: permission.event.sessionId, source: permission.event.source, sessions: sessionStore.sessions)
-                    } label: {
-                        Text("Open Terminal")
-                            .font(Constants.heading(size: 11, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 4)
-                            .background(OverlayStyle.orange)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                    }
-                    .buttonStyle(.plain)
-
-                    Button {
-                        onLater()
-                    } label: {
-                        Text("Later")
-                            .font(Constants.heading(size: 11, weight: .semibold))
-                            .foregroundStyle(OverlayStyle.denyText)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 4)
-                            .background(Color.clear)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(OverlayStyle.denyBorder, lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
+                Button {
+                    focusTerminal(pid: permission.event.terminalPid, shellPid: permission.event.shellPid, projectDir: permission.event.cwd, sessionId: permission.event.sessionId, source: permission.event.source, sessions: sessionStore.sessions)
+                } label: {
+                    Text("Open Terminal")
+                        .font(Constants.heading(size: 11, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 4)
+                        .background(OverlayStyle.orange)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
+                .buttonStyle(.plain)
             } else {
                 // Submit / Skip
                 HStack(spacing: 5) {
@@ -429,6 +415,7 @@ struct AskUserQuestionView: View {
         .clipShape(SpeechBubbleShape(tailSide: tailSide, tailPercent: tailPercent))
         .shadow(color: OverlayStyle.cardShadow, radius: 3, x: 0, y: 2)
         .onChange(of: hotkeyManager.selectedButtonIndex) { _, newIdx in
+            guard !requiresTerminalFallback else { return }
             guard showShortcuts, let idx = newIdx else { return }
             let qIdx = currentQuestionIndex
             guard qIdx < questions.count else { return }
@@ -497,11 +484,13 @@ struct AskUserQuestionView: View {
                     focusTerminal(pid: permission.event.terminalPid, shellPid: permission.event.shellPid, projectDir: permission.event.cwd, sessionId: permission.event.sessionId, source: permission.event.source, sessions: sessionStore.sessions)
                 }
 
-            VStack(alignment: .leading, spacing: 2) {
-                ForEach(Array(question.options.enumerated()), id: \.offset) { idx, option in
-                    optionRow(question: question, option: option, index: idx, isActiveQuestion: isActive, questionIndex: questionIndex)
+            if !requiresTerminalFallback {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(Array(question.options.enumerated()), id: \.offset) { idx, option in
+                        optionRow(question: question, option: option, index: idx, isActiveQuestion: isActive, questionIndex: questionIndex)
+                    }
+                    otherRow(question: question, isActiveQuestion: isActive, questionIndex: questionIndex)
                 }
-                otherRow(question: question, isActiveQuestion: isActive, questionIndex: questionIndex)
             }
         }
     }
