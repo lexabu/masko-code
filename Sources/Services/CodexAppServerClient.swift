@@ -540,6 +540,9 @@ final class CodexAppServerClient {
                 source: "codex-app-server"
             )]
 
+        case "item/started", "item/completed":
+            return mapItemLifecycleNotification(method: method, params: params)
+
         case "item/agentMessage/delta":
             let threadId = params["threadId"] as? String
             let delta = params["delta"] as? String
@@ -566,6 +569,111 @@ final class CodexAppServerClient {
 
         default:
             return []
+        }
+    }
+
+    private static func mapItemLifecycleNotification(method: String, params: [String: Any]) -> [ClaudeEvent] {
+        guard let item = params["item"] as? [String: Any],
+              let itemType = item["type"] as? String,
+              let itemId = item["id"] as? String else {
+            return []
+        }
+
+        let threadId = params["threadId"] as? String
+        let turnId = params["turnId"] as? String
+        var toolInput: [String: Any] = [:]
+        var toolName: String?
+        var status: String?
+        var failureMessage: String?
+        var cwd: String?
+
+        switch itemType {
+        case "commandExecution":
+            toolName = "exec_command"
+            status = item["status"] as? String
+            if let command = item["command"] as? String, !command.isEmpty {
+                toolInput["cmd"] = command
+            }
+            if let commandCwd = item["cwd"] as? String, !commandCwd.isEmpty {
+                cwd = commandCwd
+                toolInput["cwd"] = commandCwd
+            }
+            if let output = item["aggregatedOutput"] as? String, !output.isEmpty {
+                toolInput["output"] = output
+                if status == "failed" || status == "declined" {
+                    failureMessage = output
+                }
+            }
+            if let exitCode = item["exitCode"] {
+                toolInput["exitCode"] = exitCode
+            }
+
+        case "fileChange":
+            toolName = "apply_patch"
+            status = item["status"] as? String
+            if let changes = item["changes"] as? [[String: Any]], !changes.isEmpty {
+                toolInput["changes"] = changes
+            }
+
+        case "mcpToolCall":
+            toolName = (item["tool"] as? String).flatMap { $0.isEmpty ? nil : "mcp:\($0)" } ?? "mcp_tool_call"
+            status = item["status"] as? String
+            if let arguments = item["arguments"] {
+                toolInput["arguments"] = arguments
+            }
+            if let server = item["server"] as? String, !server.isEmpty {
+                toolInput["server"] = server
+            }
+            if let error = item["error"] as? [String: Any],
+               let message = error["message"] as? String,
+               !message.isEmpty {
+                failureMessage = message
+            }
+
+        case "dynamicToolCall":
+            toolName = (item["tool"] as? String).flatMap { $0.isEmpty ? nil : "dynamic:\($0)" } ?? "dynamic_tool_call"
+            status = item["status"] as? String
+            if let arguments = item["arguments"] {
+                toolInput["arguments"] = arguments
+            }
+
+        default:
+            return []
+        }
+
+        guard let toolName,
+              let hookEventName = lifecycleHookEventName(method: method, status: status) else {
+            return []
+        }
+
+        let event = ClaudeEvent(
+            hookEventName: hookEventName,
+            sessionId: threadId,
+            cwd: cwd,
+            toolName: toolName,
+            toolInput: toolInput.isEmpty ? nil : toolInput.mapValues(AnyCodable.init),
+            toolUseId: itemId,
+            message: failureMessage,
+            source: "codex-app-server",
+            taskId: turnId
+        )
+        return [event]
+    }
+
+    private static func lifecycleHookEventName(method: String, status: String?) -> String? {
+        if method == "item/started" {
+            return HookEventType.preToolUse.rawValue
+        }
+
+        switch status {
+        case "completed":
+            return HookEventType.postToolUse.rawValue
+        case "failed", "declined":
+            return HookEventType.postToolUseFailure.rawValue
+        case "inProgress":
+            return HookEventType.preToolUse.rawValue
+        default:
+            return nil
         }
     }
 

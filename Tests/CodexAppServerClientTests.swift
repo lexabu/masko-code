@@ -158,4 +158,50 @@ final class CodexAppServerClientTests: XCTestCase {
         XCTAssertEqual(events[0].toolUseId, "321")
         XCTAssertEqual(events[0].sessionId, "thr_pending")
     }
+
+    func testMapItemStartedCommandExecutionToPreToolUse() {
+        let params: [String: Any] = [
+            "threadId": "thr_tool",
+            "turnId": "turn_tool",
+            "item": [
+                "id": "item_cmd_1",
+                "type": "commandExecution",
+                "status": "inProgress",
+                "command": "ls -la",
+                "cwd": "/Users/test/project",
+            ],
+        ]
+
+        let events = CodexAppServerClient.mapServerNotification(method: "item/started", params: params)
+
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events[0].hookEventName, HookEventType.preToolUse.rawValue)
+        XCTAssertEqual(events[0].toolName, "exec_command")
+        XCTAssertEqual(events[0].toolUseId, "item_cmd_1")
+        XCTAssertEqual(events[0].toolInput?["cmd"]?.stringValue, "ls -la")
+    }
+
+    func testMapItemCompletedFailedCommandExecutionToPostToolUseFailure() {
+        let params: [String: Any] = [
+            "threadId": "thr_tool",
+            "turnId": "turn_tool",
+            "item": [
+                "id": "item_cmd_2",
+                "type": "commandExecution",
+                "status": "failed",
+                "command": "git push",
+                "cwd": "/Users/test/project",
+                "aggregatedOutput": "fatal: network unreachable",
+                "exitCode": 1,
+            ],
+        ]
+
+        let events = CodexAppServerClient.mapServerNotification(method: "item/completed", params: params)
+
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events[0].hookEventName, HookEventType.postToolUseFailure.rawValue)
+        XCTAssertEqual(events[0].toolName, "exec_command")
+        XCTAssertEqual(events[0].toolUseId, "item_cmd_2")
+        XCTAssertEqual(events[0].message, "fatal: network unreachable")
+    }
 }
