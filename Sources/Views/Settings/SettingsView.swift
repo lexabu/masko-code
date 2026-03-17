@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(AppStore.self) var appStore
     @Environment(AppUpdater.self) var appUpdater
+    @Environment(OverlayManager.self) var overlayManager
     @State private var isHookEnabled = false
     @State private var hookError: String?
     @State private var showUninstallConfirm = false
@@ -15,6 +16,7 @@ struct SettingsView: View {
     @State private var extensionError: String?
     @State private var extensionBusy = false
     @State private var installingIDE: String?  // command of IDE currently being installed
+    @State private var autoHideDelayText: String = "15"
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
@@ -97,6 +99,31 @@ struct SettingsView: View {
                     Text(error)
                         .font(.system(size: 11))
                         .foregroundColor(.red)
+                }
+
+                Toggle("Auto-hide when no sessions", isOn: Binding(
+                    get: { overlayManager.isAutoHideEnabled },
+                    set: { overlayManager.setAutoHideEnabled($0) }
+                ))
+                .foregroundColor(Constants.textPrimary)
+
+                if overlayManager.isAutoHideEnabled {
+                    HStack {
+                        Text("Delay (seconds)")
+                            .foregroundColor(Constants.textPrimary)
+                        Spacer()
+                        TextField("", text: $autoHideDelayText)
+                            .frame(width: 70)
+                            .textFieldStyle(.roundedBorder)
+                            .multilineTextAlignment(.trailing)
+                            .font(.system(size: 12, design: .monospaced))
+                            .onSubmit {
+                                if let value = Int(autoHideDelayText), value >= 0 {
+                                    overlayManager.setAutoHideDelay(TimeInterval(value))
+                                }
+                                autoHideDelayText = String(Int(overlayManager.autoHideDelay))
+                            }
+                    }
                 }
             } header: {
                 Text("Claude Code").font(Constants.heading(size: 13, weight: .semibold))
@@ -353,6 +380,7 @@ struct SettingsView: View {
             // Fast, synchronous — safe on main thread
             isHookEnabled = HookInstaller.isRegistered()
             videoCacheSize = VideoCache.shared.cacheSize
+            autoHideDelayText = String(Int(overlayManager.autoHideDelay))
             portText = String(appStore.localServer.port)
 
             // Show cached IDE statuses immediately (no flash on repeat visits)
