@@ -3,7 +3,7 @@ import AppKit
 
 // MARK: - Overlay style constants (Speech Bubble + Tight Crisp Shadow)
 
-private enum OverlayStyle {
+enum OverlayStyle {
     static let cardBg = Color.white
     static let cardShadow = Color(red: 35/255, green: 17/255, blue: 60/255).opacity(0.22)
     static let codeBg = Color(red: 250/255, green: 249/255, blue: 247/255)  // #faf9f7
@@ -174,7 +174,7 @@ private struct SpeechBubbleShape: Shape {
 // MARK: - Shortcut Badge (reusable)
 
 /// Small capsule badge showing ⌘N, overlaid on buttons/options when holding ⌘
-private struct ShortcutBadge: View {
+struct ShortcutBadge: View {
     let index: Int
     let isSelected: Bool
 
@@ -191,7 +191,7 @@ private struct ShortcutBadge: View {
 }
 
 /// Small inline badge for action shortcuts (⌘↩, ⌘Esc, ⌘M)
-private struct ActionBadge: View {
+struct ActionBadge: View {
     let label: String
 
     var body: some View {
@@ -207,9 +207,9 @@ private struct ActionBadge: View {
 }
 
 /// Persistent shortcut hint bar shown below action buttons inside each card
-private struct ShortcutHintBar: View {
+struct ShortcutHintBar: View {
     var body: some View {
-        Text("⌘↵ allow · ⌘⎋ deny · ⌘L later · ⌘⌘ switch")
+        Text("⌘↵ allow · ⌘⎋ deny · ⌘L later · ⌘P expand · ⌘⌘ switch")
             .font(.system(size: 8, weight: .medium, design: .rounded))
             .foregroundStyle(OverlayStyle.textPrimary.opacity(0.35))
             .frame(maxWidth: .infinity)
@@ -218,7 +218,7 @@ private struct ShortcutHintBar: View {
 }
 
 /// Render markdown string as AttributedString, falling back to plain text
-private func markdownText(_ string: String) -> Text {
+func markdownText(_ string: String) -> Text {
     if let attributed = try? AttributedString(markdown: string, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
         return Text(attributed)
     }
@@ -228,7 +228,7 @@ private func markdownText(_ string: String) -> Text {
 /// Activate the terminal running the Claude Code session.
 /// Delegates to shared IDETerminalFocus utility (supports exact tab switching via IDE extension).
 /// Uses the session's stored projectDir (set at session start) to avoid issues when the agent has cd'd.
-private func focusTerminal(pid: Int? = nil, shellPid: Int? = nil, projectDir: String? = nil, sessionId: String? = nil, sessions: [ClaudeSession] = []) {
+func focusTerminal(pid: Int? = nil, shellPid: Int? = nil, projectDir: String? = nil, sessionId: String? = nil, sessions: [AgentSession] = []) {
     let resolvedDir = sessions.first(where: { $0.id == sessionId })?.projectDir ?? projectDir
     IDETerminalFocus.focus(terminalPid: pid, shellPid: shellPid, projectDir: resolvedDir)
 }
@@ -302,6 +302,18 @@ struct AskUserQuestionView: View {
                     .help("Handle later")
 
                     if showShortcuts { ActionBadge(label: "⌘L") }
+                }
+
+                HStack(spacing: 3) {
+                    Button { hotkeyManager.onExpandPermission?() } label: {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .font(.system(size: 10))
+                            .foregroundStyle(OverlayStyle.textHint)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Expand")
+
+                    if showShortcuts { ActionBadge(label: "⌘P") }
                 }
             }
 
@@ -636,6 +648,18 @@ struct ExitPlanModeView: View {
 
                     if showShortcuts { ActionBadge(label: "⌘L") }
                 }
+
+                HStack(spacing: 3) {
+                    Button { hotkeyManager.onExpandPermission?() } label: {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .font(.system(size: 10))
+                            .foregroundStyle(OverlayStyle.textHint)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Expand")
+
+                    if showShortcuts { ActionBadge(label: "⌘P") }
+                }
             }
 
             // Plan content (rendered as markdown)
@@ -907,6 +931,18 @@ struct PermissionPromptView: View {
 
                     if showShortcuts { ActionBadge(label: "⌘L") }
                 }
+
+                HStack(spacing: 3) {
+                    Button { hotkeyManager.onExpandPermission?() } label: {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .font(.system(size: 10))
+                            .foregroundStyle(OverlayStyle.textHint)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Expand")
+
+                    if showShortcuts { ActionBadge(label: "⌘P") }
+                }
             }
 
             // Code preview
@@ -1129,6 +1165,8 @@ private struct CollapsedPermissionPill: View {
 struct PermissionStackView: View {
     @Environment(PendingPermissionStore.self) var pendingPermissionStore
     @Environment(GlobalHotkeyManager.self) var hotkeyManager
+    @Environment(\.speechBubbleTailSide) private var tailSide
+    @Environment(\.speechBubbleTailPercent) private var tailPercent
 
     var body: some View {
         #if DEBUG
@@ -1175,7 +1213,7 @@ struct PermissionStackView: View {
                     : nil
 
                 ForEach(Array(pendingPermissionStore.pending.reversed().enumerated()), id: \.element.id) { index, perm in
-                    let showShortcuts = hotkeyManager.isCmdHeld && !hotkeyManager.isSessionSwitcherActive && (perm.id == firstNonCollapsedId || perm.id == firstCollapsedId)
+                    let showShortcuts = hotkeyManager.isCmdHeld && !hotkeyManager.isSessionSwitcherActive && !hotkeyManager.isExpandedPermissionActive && (perm.id == firstNonCollapsedId || perm.id == firstCollapsedId)
 
                     if pendingPermissionStore.collapsed.contains(perm.id) {
                         CollapsedPermissionPill(
@@ -1187,8 +1225,9 @@ struct PermissionStackView: View {
                         )
                         .transition(.move(edge: .top).combined(with: .opacity))
                     } else {
-                        PermissionPromptView(
+                        PermissionContentView(
                             permission: perm,
+                            mode: .compact,
                             onDecision: { decision in
                                 pendingPermissionStore.resolve(id: perm.id, decision: decision)
                             },
@@ -1204,8 +1243,16 @@ struct PermissionStackView: View {
                             onLater: {
                                 pendingPermissionStore.collapse(id: perm.id)
                             },
+                            onToggleMode: {
+                                hotkeyManager.onExpandPermission?()
+                            },
                             showShortcuts: showShortcuts
                         )
+                        .padding(8)
+                        .padding(tailSide.paddingEdge, OverlayStyle.tailHeight)
+                        .background(OverlayStyle.cardBg)
+                        .clipShape(SpeechBubbleShape(tailSide: tailSide, tailPercent: tailPercent))
+                        .shadow(color: OverlayStyle.cardShadow, radius: 3, x: 0, y: 2)
                         .transition(.move(edge: .top).combined(with: .opacity))
                     }
                 }

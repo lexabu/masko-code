@@ -10,7 +10,8 @@ enum ActiveCard: Int32 {
     case none = 0
     case toast = 1
     case permission = 2
-    case sessionSwitcher = 3
+    case expandedPermission = 3
+    case sessionSwitcher = 4
 }
 
 // MARK: - Thread-safe state shared between main actor and CGEvent callback
@@ -80,6 +81,9 @@ final class GlobalHotkeyManager {
     /// Called when ⌘L collapses (later) the topmost non-collapsed permission.
     var onCollapsePermission: (() -> Void)?
 
+    /// Called when ⌘P expands the topmost permission to fullscreen.
+    var onExpandPermission: (() -> Void)?
+
     /// Called when double-tap Cmd opens the session switcher.
     var onSessionSwitcherOpen: (() -> Void)?
 
@@ -94,10 +98,10 @@ final class GlobalHotkeyManager {
     private var previousApp: NSRunningApplication?
 
     // MARK: - Active card (bridged to shared state)
+    // Stored property so @Observable tracks changes for SwiftUI reactivity.
 
-    var activeCard: ActiveCard {
-        get { shared.activeCard }
-        set { shared.activeCard = newValue }
+    var activeCard: ActiveCard = .none {
+        didSet { shared.activeCard = activeCard }
     }
 
     var activeSessionCount: Int {
@@ -107,7 +111,12 @@ final class GlobalHotkeyManager {
 
     /// Whether the session switcher overlay is currently showing.
     var isSessionSwitcherActive: Bool {
-        shared.activeCard == .sessionSwitcher
+        activeCard == .sessionSwitcher
+    }
+
+    /// Whether the expanded permission panel is currently showing.
+    var isExpandedPermissionActive: Bool {
+        activeCard == .expandedPermission
     }
 
     // MARK: - Configurable shortcut (stored in UserDefaults)
@@ -463,9 +472,15 @@ private func globalHotkeyCallback(
             return nil
         }
 
-        // ⌘L: collapse permission (only when a permission is on top)
-        if keyCode == 37, card == .permission {
+        // ⌘L: collapse permission (permission or expanded permission)
+        if keyCode == 37, card == .permission || card == .expandedPermission {
             DispatchQueue.main.async { manager.onCollapsePermission?() }
+            return nil
+        }
+
+        // ⌘P: expand/collapse permission to fullscreen (P = keyCode 35)
+        if keyCode == 35, card == .permission || card == .expandedPermission {
+            DispatchQueue.main.async { manager.onExpandPermission?() }
             return nil
         }
 

@@ -161,6 +161,9 @@ struct MaskoDesktopApp: App {
                     appStore.onRefreshOverlay = { [weak overlayManager] in
                         overlayManager?.refreshInputs()
                     }
+                    appStore.onExpandPermission = { [weak overlayManager] in
+                        overlayManager?.showExpandedPermission()
+                    }
                     appStore.onSessionSwitcherShow = { [weak overlayManager] in
                         overlayManager?.showSessionSwitcher()
                     }
