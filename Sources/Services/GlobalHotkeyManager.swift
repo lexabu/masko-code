@@ -455,6 +455,11 @@ private func globalHotkeyCallback(
 
     // Esc (no modifiers): dismiss the topmost card
     if keyCode == 53 && !flags.contains(.maskCommand) && card != .none {
+        // Skip plain ESC for permission cards to prevent accidental deny
+        // (CJK input methods use ESC to clear input). Use Cmd+ESC instead.
+        if card == .permission || card == .expandedPermission {
+            return Unmanaged.passUnretained(event) // pass through
+        }
         DispatchQueue.main.async { manager.onDismiss?() }
         return nil
     }

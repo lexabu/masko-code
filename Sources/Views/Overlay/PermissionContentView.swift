@@ -692,7 +692,6 @@ struct PermissionContentView: View {
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(OverlayStyle.denyBorder, lineWidth: 1))
                 }
                 .buttonStyle(.plain)
-                .keyboardShortcut(.escape, modifiers: .command)
 
                 Button(action: onApprove) {
                     HStack(spacing: 5) {
@@ -707,7 +706,6 @@ struct PermissionContentView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
                 .buttonStyle(.plain)
-                .keyboardShortcut(.return, modifiers: .command)
                 .disabled(approveDisabled)
             }
             .animation(.easeInOut(duration: 0.15), value: hotkeyManager.isCmdHeld)
