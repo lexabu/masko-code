@@ -6,7 +6,7 @@ import Foundation
 enum IDETerminalFocus {
 
     /// Focus the terminal for a given session.
-    static func focusSession(_ session: ClaudeSession) {
+    static func focusSession(_ session: AgentSession) {
         focus(terminalPid: session.terminalPid, shellPid: session.shellPid, projectDir: session.projectDir)
     }
 
@@ -27,10 +27,13 @@ enum IDETerminalFocus {
            let bundleId,
            let scheme = ExtensionInstaller.uriScheme(forBundleId: bundleId),
            UserDefaults.standard.bool(forKey: "ideExtensionEnabled") {
-            // Bring correct window to front by workspace path, then fire URI
-            if let projectDir {
-                bringWindowToFront(bundleId: bundleId, projectDir: projectDir)
+            // Activate the app window by PID (not by workspace path, which can open
+            // new windows when cwd differs from the workspace root)
+            if let pid = terminalPid,
+               let app = NSRunningApplication(processIdentifier: pid_t(pid)) {
+                app.activate()
             }
+            // Fire URI to switch to the exact terminal tab matching shellPid
             let urlString = "\(scheme)://masko.masko-terminal-focus/focus?pid=\(shellPid)"
             if let url = URL(string: urlString) {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
