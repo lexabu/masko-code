@@ -5,6 +5,7 @@ import Foundation
 final class AppStore {
     let eventBus = MaskoEventBus()
     let claudeCodeAdapter = ClaudeCodeAdapter()
+    let copilotAdapter = CopilotAdapter()
     let eventStore = EventStore()
     let sessionStore = SessionStore()
     let notificationStore = NotificationStore()
@@ -63,6 +64,7 @@ final class AppStore {
 
         // Register adapters with the event bus
         eventBus.register(claudeCodeAdapter)
+        eventBus.register(copilotAdapter)
 
         // Wire event bus -> event processor + overlay state machine
         eventBus.onEvent = { [weak self] event in
