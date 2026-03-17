@@ -244,7 +244,11 @@ final class GlobalHotkeyManager {
             Self.debugLog("CGEvent tap FAILED — AXIsProcessTrusted=\(trusted)")
             print("[masko-desktop] CGEvent tap failed — AXIsProcessTrusted=\(trusted)")
             isActive = false
-            requestAccessibilityPermission()
+            // Only prompt once - if the user already denied, don't keep showing the dialog
+            if !UserDefaults.standard.bool(forKey: "accessibilityDenied") {
+                requestAccessibilityPermission()
+                UserDefaults.standard.set(true, forKey: "accessibilityDenied")
+            }
             return
         }
 
@@ -253,6 +257,8 @@ final class GlobalHotkeyManager {
         CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
         isActive = true
+        // Clear denied flag now that accessibility is working
+        UserDefaults.standard.removeObject(forKey: "accessibilityDenied")
 
         Self.debugLog("Started! shortcut=\(shortcutLabel), keyCode=\(shared.keyCode), mods=\(shared.modifiersRaw)")
         print("[masko-desktop] Global hotkey manager started (shortcut: \(shortcutLabel))")
@@ -273,7 +279,10 @@ final class GlobalHotkeyManager {
     }
 
     /// Prompt the macOS Accessibility permission dialog.
+    /// Called from explicit user actions (onboarding, settings) and once from start().
     func requestAccessibilityPermission() {
+        // Clear denied flag so explicit user requests always show the dialog
+        UserDefaults.standard.removeObject(forKey: "accessibilityDenied")
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
         let trusted = AXIsProcessTrustedWithOptions(options)
         if trusted && shared.eventTap == nil {
