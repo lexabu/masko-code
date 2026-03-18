@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 struct AgentSession: Identifiable, Codable {
@@ -14,6 +15,7 @@ struct AgentSession: Identifiable, Codable {
     var activeSubagentCount: Int = 0
     var isCompacting: Bool = false
     var terminalPid: Int?
+    var terminalBundleId: String?
     var shellPid: Int?
     var transcriptPath: String?
 
@@ -297,6 +299,10 @@ final class SessionStore {
             if let path = event.transcriptPath, sessions[index].transcriptPath == nil {
                 sessions[index].transcriptPath = path
             }
+            if let pid = event.terminalPid, sessions[index].terminalPid == nil {
+                sessions[index].terminalPid = pid
+                sessions[index].terminalBundleId = Self.resolveBundleId(pid: pid)
+            }
             if let pid = event.shellPid, sessions[index].shellPid == nil {
                 sessions[index].shellPid = pid
             }
@@ -328,6 +334,7 @@ final class SessionStore {
                 sessions[index].isCompacting = false
                 if let pid = event.terminalPid {
                     sessions[index].terminalPid = pid
+                    sessions[index].terminalBundleId = Self.resolveBundleId(pid: pid)
                 }
                 if let pid = event.shellPid {
                     sessions[index].shellPid = pid
@@ -378,10 +385,17 @@ final class SessionStore {
                 lastEventAt: Date()
             )
             session.terminalPid = event.terminalPid
+            if let pid = event.terminalPid {
+                session.terminalBundleId = Self.resolveBundleId(pid: pid)
+            }
             session.shellPid = event.shellPid
             session.transcriptPath = event.transcriptPath
             sessions.insert(session, at: 0)
         }
         persist()
+    }
+
+    private static func resolveBundleId(pid: Int) -> String? {
+        NSRunningApplication(processIdentifier: pid_t(pid))?.bundleIdentifier
     }
 }
