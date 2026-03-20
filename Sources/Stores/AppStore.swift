@@ -229,6 +229,13 @@ final class AppStore {
             self.onSessionSwitcherDismiss?()
         }
 
+        // Auto-dismiss session switcher after inactivity to prevent stuck keyboard capture
+        sessionSwitcherStore.onAutoDismiss = { [weak self] in
+            guard let self else { return }
+            self.syncActiveCard()
+            self.onSessionSwitcherDismiss?()
+        }
+
         // Wire hotkey manager — session switcher open (double-tap Cmd)
         hotkeyManager.onSessionSwitcherOpen = { [weak self] in
             guard let self else { return }

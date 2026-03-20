@@ -132,6 +132,8 @@ final class SessionStore {
     ]
     private var reconcileTimer: Timer?
     private var interruptWatcherTimer: Timer?
+    /// Track active subagent IDs per session to prevent double-counting
+    private var activeSubagentIds: [String: Set<String>] = [:]
 
     /// Called when interrupt detection flips a running session to idle.
     /// Wire this to refresh overlay inputs.
@@ -468,13 +470,26 @@ final class SessionStore {
                 sessions[index].phase = .idle
                 sessions[index].activeSubagentCount = 0
                 sessions[index].isCompacting = false
+                activeSubagentIds.removeValue(forKey: sessionId)
                 onPhasesChanged?()
 
             case .subagentStart:
-                sessions[index].activeSubagentCount += 1
+                if let agentId = event.agentId {
+                    var ids = activeSubagentIds[sessionId] ?? []
+                    ids.insert(agentId)
+                    activeSubagentIds[sessionId] = ids
+                    sessions[index].activeSubagentCount = ids.count
+                } else {
+                    sessions[index].activeSubagentCount += 1
+                }
 
             case .subagentStop:
-                sessions[index].activeSubagentCount = max(0, sessions[index].activeSubagentCount - 1)
+                if let agentId = event.agentId {
+                    activeSubagentIds[sessionId]?.remove(agentId)
+                    sessions[index].activeSubagentCount = activeSubagentIds[sessionId]?.count ?? 0
+                } else {
+                    sessions[index].activeSubagentCount = max(0, sessions[index].activeSubagentCount - 1)
+                }
 
             default:
                 break

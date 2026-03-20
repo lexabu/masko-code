@@ -54,7 +54,7 @@ struct PermissionContentView: View {
     private var innerSpacing: CGFloat { isExpanded ? 12 : 5 }
     private var buttonPaddingH: CGFloat { isExpanded ? 20 : 0 }
     private var buttonPaddingV: CGFloat { isExpanded ? 8 : 4 }
-    private var contentMaxHeight: CGFloat? { isExpanded ? nil : (isPlan ? 120 : 200) }
+    private var contentMaxHeight: CGFloat? { isExpanded ? nil : (isPlan ? 160 : 300) }
 
     var body: some View {
         Group {
@@ -457,7 +457,7 @@ struct PermissionContentView: View {
             Text(permission.toolInputPreview)
                 .font(.system(size: codeFont, design: .monospaced))
                 .foregroundStyle(OverlayStyle.textPrimary.opacity(0.75))
-                .lineLimit(2)
+                .lineLimit(4)
                 .padding(5)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(OverlayStyle.codeBg)
@@ -639,6 +639,7 @@ struct PermissionContentView: View {
                     ? OverlayStyle.orange.opacity(0.12)
                     : (state.selectedOption == idx ? OverlayStyle.selectedBg : (isExpanded ? OverlayStyle.textPrimary.opacity(0.02) : Color.clear))
             )
+            .contentShape(Rectangle())
             .clipShape(RoundedRectangle(cornerRadius: isExpanded ? 8 : 7))
         }
         .buttonStyle(.plain)
@@ -693,6 +694,7 @@ struct PermissionContentView: View {
                             ? OverlayStyle.orange.opacity(0.08)
                             : Color.clear
                     )
+                    .contentShape(Rectangle())
                     .clipShape(RoundedRectangle(cornerRadius: isExpanded ? 8 : 7))
                     .overlay(RoundedRectangle(cornerRadius: isExpanded ? 8 : 7).stroke(
                         (hotkeyManager.selectedButtonIndex == sugIndex && showBadge)

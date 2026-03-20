@@ -384,7 +384,7 @@ struct AskUserQuestionView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 4)
-                    .background(Color.clear)
+                    .contentShape(Rectangle())
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(OverlayStyle.denyBorder, lineWidth: 1))
                 }
@@ -975,7 +975,7 @@ struct PermissionPromptView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxHeight: 150)
+                .frame(maxHeight: 250)
                 .padding(5)
                 .background(OverlayStyle.codeBg)
                 .clipShape(RoundedRectangle(cornerRadius: 7))
@@ -990,7 +990,7 @@ struct PermissionPromptView: View {
                 Text(permission.toolInputPreview)
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(OverlayStyle.textPrimary.opacity(0.75))
-                    .lineLimit(2)
+                    .lineLimit(4)
                     .padding(5)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(OverlayStyle.codeBg)

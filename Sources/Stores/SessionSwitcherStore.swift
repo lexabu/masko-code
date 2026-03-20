@@ -5,9 +5,12 @@ final class SessionSwitcherStore {
     private(set) var isActive = false
     private(set) var selectedIndex: Int = 0
     private(set) var sessions: [AgentSession] = []
+    private var autoDismissTimer: Timer?
 
     /// Called when user taps a row — AppStore wires this to focus terminal + dismiss.
     var onTapConfirm: ((AgentSession) -> Void)?
+    /// Called when auto-dismiss fires — AppStore wires this to update activeCard.
+    var onAutoDismiss: (() -> Void)?
 
     func open(sessions: [AgentSession]) {
         // Running sessions first, then by most recently active.
@@ -18,16 +21,19 @@ final class SessionSwitcherStore {
         }
         self.selectedIndex = 0 // Start on the most recent session
         self.isActive = true
+        resetAutoDismissTimer()
     }
 
     func selectNext() {
         guard isActive, !sessions.isEmpty else { return }
         selectedIndex = (selectedIndex + 1) % sessions.count
+        resetAutoDismissTimer()
     }
 
     func selectPrevious() {
         guard isActive, !sessions.isEmpty else { return }
         selectedIndex = (selectedIndex - 1 + sessions.count) % sessions.count
+        resetAutoDismissTimer()
     }
 
     func selectIndex(_ index: Int) {
@@ -73,8 +79,22 @@ final class SessionSwitcherStore {
     }
 
     func close() {
+        autoDismissTimer?.invalidate()
+        autoDismissTimer = nil
         isActive = false
         sessions = []
         selectedIndex = 0
+    }
+
+    /// Auto-dismiss after 5 seconds of no interaction to prevent stuck keyboard capture.
+    private func resetAutoDismissTimer() {
+        autoDismissTimer?.invalidate()
+        autoDismissTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
+            DispatchQueue.main.async {
+                guard let self, self.isActive else { return }
+                self.close()
+                self.onAutoDismiss?()
+            }
+        }
     }
 }

@@ -193,8 +193,8 @@ struct PendingPermission: Identifiable {
         let clean = raw.replacingOccurrences(of: "\n", with: " ")
             .replacingOccurrences(of: "  +", with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespaces)
-        if clean.count > 100 {
-            return String(clean.prefix(100)) + "..."
+        if clean.count > 200 {
+            return String(clean.prefix(200)) + "..."
         }
         return clean
     }
