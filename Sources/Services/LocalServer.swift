@@ -12,6 +12,8 @@ final class LocalServer {
     var onPermissionRequest: ((AgentEvent, NWConnection) -> Void)?
     /// Custom input endpoint: `POST /input {"name":"x","value":true}`
     var onInputReceived: ((String, ConditionValue) -> Void)?
+    /// Install mascot endpoint: `POST /install {config JSON}`
+    var onInstallReceived: ((MaskoAnimationConfig) -> Void)?
 
     private var retryCount = 0
     private static let maxRetries = 3
@@ -165,6 +167,12 @@ final class LocalServer {
             return
         }
 
+        // CORS preflight for browser requests (e.g. from masko.ai export modal)
+        if firstLine.contains("OPTIONS /install") {
+            sendCORSResponse(connection: connection, status: "204 No Content", body: "")
+            return
+        }
+
         // Extract body for POST routes
         guard let bodyRange = httpString.range(of: "\r\n\r\n") else {
             sendResponse(connection: connection, status: "400 Bad Request", body: "No body")
@@ -232,11 +240,41 @@ final class LocalServer {
             return
         }
 
+        // Route: POST /install — receive mascot config from masko.ai export modal
+        if firstLine.contains("POST /install") {
+            let decoder = JSONDecoder()
+            if let config = try? decoder.decode(MaskoAnimationConfig.self, from: bodyData) {
+                print("[masko-desktop] Install received: \(config.name)")
+                DispatchQueue.main.async { [weak self] in
+                    self?.onInstallReceived?(config)
+                }
+                sendCORSResponse(connection: connection, status: "200 OK", body: "OK")
+            } else {
+                sendCORSResponse(connection: connection, status: "400 Bad Request", body: "Invalid config JSON")
+            }
+            return
+        }
+
         sendResponse(connection: connection, status: "404 Not Found", body: "Not Found")
     }
 
     private func sendResponse(connection: NWConnection, status: String, body: String) {
         let response = "HTTP/1.1 \(status)\r\nContent-Length: \(body.utf8.count)\r\nConnection: close\r\n\r\n\(body)"
+        connection.send(content: response.data(using: .utf8), completion: .contentProcessed { _ in
+            connection.cancel()
+        })
+    }
+
+    /// Send response with CORS headers (for browser requests from masko.ai)
+    private func sendCORSResponse(connection: NWConnection, status: String, body: String) {
+        let headers = [
+            "Content-Length: \(body.utf8.count)",
+            "Connection: close",
+            "Access-Control-Allow-Origin: *",
+            "Access-Control-Allow-Methods: POST, OPTIONS",
+            "Access-Control-Allow-Headers: Content-Type",
+        ].joined(separator: "\r\n")
+        let response = "HTTP/1.1 \(status)\r\n\(headers)\r\n\r\n\(body)"
         connection.send(content: response.data(using: .utf8), completion: .contentProcessed { _ in
             connection.cancel()
         })

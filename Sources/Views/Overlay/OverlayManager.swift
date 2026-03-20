@@ -284,6 +284,7 @@ final class OverlayManager {
         // Resize/reposition when permissions change (delay lets SwiftUI render)
         pendingPermissionStore.onPendingChange = { [weak self] in
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self?.refreshInputs()
                 self?.scheduleHUDReposition()
                 self?.dismissExpandedPermission()
             }
@@ -722,6 +723,7 @@ final class OverlayManager {
 
         pendingPermissionStore.onPendingChange = { [weak self] in
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self?.refreshInputs()
                 self?.scheduleHUDReposition()
             }
         }
@@ -980,6 +982,10 @@ final class OverlayManager {
         newPanel.contentView = controller.view
         newPanel.contentViewController = controller
 
+        // Hide the bubble panels to avoid overlap (keep mascot visible)
+        statsPanel?.orderOut(nil)
+        permissionPanel?.orderOut(nil)
+
         newPanel.orderFrontRegardless()
         SkyLightOperator.shared.delegateWindow(newPanel)
 
@@ -993,6 +999,11 @@ final class OverlayManager {
     func dismissExpandedPermission() {
         expandedPanel?.close()
         expandedPanel = nil
+
+        // Restore the bubble panels
+        statsPanel?.orderFrontRegardless()
+        permissionPanel?.orderFrontRegardless()
+
         // Restore active card to permission so shortcuts target the small bubble again
         if !pendingPermissionStore.pending.isEmpty {
             hotkeyManager.activeCard = .permission

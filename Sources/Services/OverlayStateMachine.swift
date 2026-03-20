@@ -19,6 +19,7 @@ final class OverlayStateMachine {
     private(set) var currentNodeId: String
     private(set) var currentVideoURL: URL?
     private(set) var isLoopVideo = true
+    private(set) var currentPlaybackRate: Float = 1.0
 
     let config: MaskoAnimationConfig
 
@@ -65,11 +66,20 @@ final class OverlayStateMachine {
     private var nodeTimeTimer: Timer?
     private var nodeTimeGeneration: Int = 0
 
+    /// Target node for Any State routing through intermediate nodes
+    private var pendingTarget: String?
+
+    /// Any State edges (source == "*"), pre-sorted by priority descending
+    private let anyStateEdges: [MaskoAnimationEdge]
+
     // MARK: - Init
 
     init(config: MaskoAnimationConfig) {
         self.config = config
         self.currentNodeId = config.initialNode
+        self.anyStateEdges = config.edges
+            .filter { $0.source == "*" }
+            .sorted { ($0.priority ?? 0) > ($1.priority ?? 0) }
         initializeInputs()
     }
 
@@ -194,6 +204,16 @@ final class OverlayStateMachine {
         #endif
 
         guard phase == .looping || phase == .idle else {
+            // During transitions: only update pendingTarget if a higher-priority Any State matches
+            if phase == .transitioning, !anyStateEdges.isEmpty {
+                if let best = findBestAnyStateMatch(), best.target != currentNodeId {
+                    if pendingTarget == nil || best.target != pendingTarget {
+                        pendingTarget = best.target
+                        let targetName = config.nodes.first(where: { $0.id == best.target })?.name ?? best.target
+                        print("[masko-desktop] Mid-transition: updated pendingTarget to \(targetName)")
+                    }
+                }
+            }
             lastMatchResult = "Ignored (phase=\(phase))"
             return
         }
@@ -211,22 +231,121 @@ final class OverlayStateMachine {
             }
         }
 
-        // Check all non-loop edges from current node — first match wins
+        // =====================================================================
+        // Step 1: Find highest-priority matching Any State edge
+        // =====================================================================
+        var bestAnyState = findBestAnyStateMatch()
+
+        // If we're already at the highest-priority target, stay put
+        if let best = bestAnyState, best.target == currentNodeId {
+            lastMatchResult = "Already at highest-priority state (\(currentNodeName))"
+            bestAnyState = nil
+        }
+
+        // =====================================================================
+        // Step 2: If pendingTarget exists, check preemption or clear
+        // =====================================================================
+        if pendingTarget != nil {
+            if let best = bestAnyState, best.target != pendingTarget {
+                // Higher-priority state overrides
+                let targetName = config.nodes.first(where: { $0.id == best.target })?.name ?? best.target
+                print("[masko-desktop] pendingTarget overridden by higher-priority → \(targetName)")
+                pendingTarget = best.target
+            } else if bestAnyState == nil {
+                // No Any State matches - conditions cleared
+                print("[masko-desktop] pendingTarget cleared (no matching Any State)")
+                pendingTarget = nil
+            }
+        }
+
+        // =====================================================================
+        // Step 3: Route toward pendingTarget
+        // =====================================================================
+        if let target = pendingTarget {
+            let targetName = config.nodes.first(where: { $0.id == target })?.name ?? target
+            // Try direct edge to target
+            if let directEdge = findEdgeWithVideo(from: currentNodeId, to: target) {
+                print("[masko-desktop] pendingTarget: direct edge → \(targetName)")
+                pendingTarget = nil
+                resetTriggerInput(changedInput)
+                playTransition(directEdge)
+                return
+            }
+            // Force-fire first non-loop edge with video (skip conditions)
+            if let returnEdge = config.edges.first(where: {
+                $0.source == currentNodeId && !$0.isLoop && $0.videos.hevc != nil
+            }) {
+                let retTargetName = config.nodes.first(where: { $0.id == returnEdge.target })?.name ?? returnEdge.target
+                print("[masko-desktop] pendingTarget: routing via \(retTargetName) → \(targetName)")
+                resetTriggerInput(changedInput)
+                playTransition(returnEdge)
+                return
+            }
+            // No path found
+            print("[masko-desktop] pendingTarget: no path to \(targetName) - giving up")
+            pendingTarget = nil
+        }
+
+        // =====================================================================
+        // Step 4: Fire new Any State match
+        // =====================================================================
+        if let best = bestAnyState, pendingTarget == nil {
+            let targetName = config.nodes.first(where: { $0.id == best.target })?.name ?? best.target
+            // Try direct edge with video
+            if let directEdge = findEdgeWithVideo(from: currentNodeId, to: best.target) {
+                lastMatchResult = "Any State → \(targetName) (direct)"
+                print("[masko-desktop] Any State: direct → \(targetName)")
+                resetTriggerInput(changedInput)
+                playTransition(directEdge)
+                return
+            }
+            // No direct video - set pending target and route via return edge
+            pendingTarget = best.target
+            if let returnEdge = config.edges.first(where: {
+                $0.source == currentNodeId && !$0.isLoop && $0.videos.hevc != nil
+            }) {
+                let retTargetName = config.nodes.first(where: { $0.id == returnEdge.target })?.name ?? returnEdge.target
+                lastMatchResult = "Any State → \(targetName) via \(retTargetName)"
+                print("[masko-desktop] Any State: routing via \(retTargetName) → \(targetName)")
+                resetTriggerInput(changedInput)
+                playTransition(returnEdge)
+                return
+            }
+            pendingTarget = nil
+        }
+
+        // =====================================================================
+        // Step 5: Normal evaluation (existing behavior)
+        // =====================================================================
         for edge in config.edges where edge.source == currentNodeId && !edge.isLoop {
             if evaluateConditions(edge.conditions) {
                 let targetName = config.nodes.first(where: { $0.id == edge.target })?.name ?? edge.target
                 lastMatchResult = "Matched → \(targetName)"
                 print("[masko-desktop] Conditions met → \(targetName)")
-
-                // Reset trigger-type inputs after firing
                 resetTriggerInput(changedInput)
-
                 playTransition(edge)
                 return
             }
         }
 
         lastMatchResult = "No match from \(currentNodeName)"
+    }
+
+    /// Find the highest-priority Any State edge whose conditions match (regardless of current node)
+    private func findBestAnyStateMatch() -> MaskoAnimationEdge? {
+        for edge in anyStateEdges {
+            if evaluateConditions(edge.conditions) {
+                return edge
+            }
+        }
+        return nil
+    }
+
+    /// Find a non-loop edge from source to target that has a video
+    private func findEdgeWithVideo(from source: String, to target: String) -> MaskoAnimationEdge? {
+        config.edges.first {
+            $0.source == source && $0.target == target && !$0.isLoop && $0.videos.hevc != nil
+        }
     }
 
     /// All conditions must be true (AND logic). Empty conditions = never fires.
@@ -297,6 +416,7 @@ final class OverlayStateMachine {
 
         if let loopEdge, let hevc = loopEdge.videos.hevc, let url = URL(string: hevc) {
             currentVideoURL = VideoCache.shared.resolve(url)
+            currentPlaybackRate = Float(loopEdge.speed ?? 1.0)
             isLoopVideo = true
             phase = .looping
             print("[masko-desktop] Arrived at \(nodeName) — looping")
@@ -367,6 +487,7 @@ final class OverlayStateMachine {
         cancelNodeTimeTimer()
         pendingEdge = edge
         currentVideoURL = VideoCache.shared.resolve(url)
+        currentPlaybackRate = Float(edge.speed ?? 1.0)
         isLoopVideo = false
         phase = .transitioning
     }

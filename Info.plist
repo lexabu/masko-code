@@ -11,9 +11,9 @@
     <key>CFBundleDisplayName</key>
     <string>Masko Code</string>
     <key>CFBundleVersion</key>
-    <string>32</string>
+    <string>36</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.10.5</string>
+    <string>0.11.1</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>LSMinimumSystemVersion</key>

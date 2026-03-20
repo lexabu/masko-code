@@ -26,6 +26,7 @@ struct OverlayStateMachineView: View {
             StateMachineVideoPlayer(
                 url: stateMachine.currentVideoURL,
                 isLoop: stateMachine.isLoopVideo,
+                rate: stateMachine.currentPlaybackRate,
                 stateMachine: stateMachine
             )
             .onTapGesture {
@@ -227,6 +228,7 @@ struct DebugHUD: View {
 struct StateMachineVideoPlayer: NSViewRepresentable {
     let url: URL?
     let isLoop: Bool
+    let rate: Float
     let stateMachine: OverlayStateMachine
 
     func makeNSView(context: Context) -> NSView {
@@ -262,7 +264,7 @@ struct StateMachineVideoPlayer: NSViewRepresentable {
 
         // Initial load
         if let url {
-            context.coordinator.loadVideo(url: url, loop: isLoop)
+            context.coordinator.loadVideo(url: url, loop: isLoop, rate: rate)
         }
 
         return container
@@ -273,8 +275,12 @@ struct StateMachineVideoPlayer: NSViewRepresentable {
 
         if url != coordinator.currentURL || isLoop != coordinator.currentLoop {
             if let url {
-                coordinator.loadVideo(url: url, loop: isLoop)
+                coordinator.loadVideo(url: url, loop: isLoop, rate: rate)
             }
+        } else if rate != coordinator.currentRate {
+            // Rate changed without URL change (e.g. loop speed update)
+            coordinator.currentRate = rate
+            coordinator.activePlayer?.rate = rate
         }
     }
 
@@ -293,10 +299,11 @@ struct StateMachineVideoPlayer: NSViewRepresentable {
 
         var currentURL: URL?
         var currentLoop = true
+        var currentRate: Float = 1.0
         private var endObserver: NSObjectProtocol?
         private var readyObserver: NSKeyValueObservation?
 
-        private var activePlayer: AVPlayer? { activeIsA ? playerA : playerB }
+        var activePlayer: AVPlayer? { activeIsA ? playerA : playerB }
         private var activeLayer: AVPlayerLayer? { activeIsA ? layerA : layerB }
 
         private func releasePlayer(_ player: inout AVPlayer?) {
@@ -309,7 +316,7 @@ struct StateMachineVideoPlayer: NSViewRepresentable {
             player = nil
         }
 
-        func loadVideo(url: URL, loop: Bool) {
+        func loadVideo(url: URL, loop: Bool, rate: Float = 1.0) {
             // Clean up pending observers
             if let obs = endObserver {
                 NotificationCenter.default.removeObserver(obs)
@@ -320,6 +327,7 @@ struct StateMachineVideoPlayer: NSViewRepresentable {
 
             currentURL = url
             currentLoop = loop
+            currentRate = rate
 
             let isFirstLoad = playerA == nil && playerB == nil
             let newPlayer = AVPlayer(url: url)
@@ -385,6 +393,9 @@ struct StateMachineVideoPlayer: NSViewRepresentable {
                 if self.currentLoop {
                     self.activePlayer?.seek(to: .zero)
                     self.activePlayer?.play()
+                    if self.currentRate != 1.0 {
+                        self.activePlayer?.rate = self.currentRate
+                    }
                     Task { @MainActor in
                         self.stateMachine?.handleLoopCycleCompleted()
                     }
@@ -396,6 +407,9 @@ struct StateMachineVideoPlayer: NSViewRepresentable {
             }
 
             newPlayer.play()
+            if rate != 1.0 {
+                newPlayer.rate = rate
+            }
         }
 
         deinit {

@@ -54,12 +54,14 @@ struct MaskoAnimationNode: Codable, Identifiable {
 
 struct MaskoAnimationEdge: Codable, Identifiable {
     let id: String
-    let source: String
+    let source: String       // node ID, or "*" for Any State edges
     let target: String
     let isLoop: Bool
     let duration: Double
     var conditions: [MaskoAnimationCondition]?
     let videos: MaskoAnimationVideos
+    let priority: Int?       // Any State edges: higher = checked first
+    let speed: Double?       // Playback rate (defaults to 1.0)
 }
 
 struct MaskoAnimationCondition: Codable {

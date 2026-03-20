@@ -168,6 +168,16 @@ final class AppStore {
             }
         }
 
+        // Wire Claude Code adapter -> direct mascot install from web app
+        claudeCodeAdapter.onInstall = { [weak self] config in
+            guard let self else { return }
+            self.mascotStore.addOrUpdateFromPush(config: config)
+            if let mascot = self.mascotStore.mascots.first(where: { $0.name == config.name }) {
+                self.navigateToMascotId = mascot.id
+            }
+            AppDelegate.showDashboard()
+        }
+
         // Wire event bus -> permission requests (with transport for responding)
         eventBus.onPermissionRequest = { [weak self] event, transport in
             guard let self else { return }

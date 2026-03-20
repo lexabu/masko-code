@@ -13,6 +13,7 @@ final class ClaudeCodeAdapter: AgentAdapter {
     var onEvent: ((AgentEvent) -> Void)?
     var onPermissionRequest: ((AgentEvent, ResponseTransport) -> Void)?
     var onInput: ((String, ConditionValue) -> Void)?
+    var onInstall: ((MaskoAnimationConfig) -> Void)?
 
     func isAvailable() -> Bool {
         let paths = ["/usr/local/bin/claude", "/opt/homebrew/bin/claude"]
@@ -51,6 +52,9 @@ final class ClaudeCodeAdapter: AgentAdapter {
         }
         localServer.onInputReceived = { [weak self] name, value in
             self?.onInput?(name, value)
+        }
+        localServer.onInstallReceived = { [weak self] config in
+            self?.onInstall?(config)
         }
         try localServer.start()
     }

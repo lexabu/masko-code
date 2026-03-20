@@ -147,6 +147,22 @@ final class MascotStore {
         persist()
     }
 
+    /// Add or update a mascot pushed directly from the web app.
+    /// Updates existing mascot with the same name, or creates a new one.
+    func addOrUpdateFromPush(config: MaskoAnimationConfig) {
+        // Remove existing with same name so we can re-insert at top with fresh config
+        mascots.removeAll { $0.name == config.name }
+        let mascot = SavedMascot(
+            id: UUID(),
+            name: config.name,
+            config: config,
+            addedAt: Date(),
+            templateSlug: nil
+        )
+        mascots.insert(mascot, at: 0)
+        persist()
+    }
+
     // MARK: - Community
 
     /// Add a mascot installed from the community marketplace.

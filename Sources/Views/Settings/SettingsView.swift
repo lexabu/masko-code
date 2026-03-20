@@ -647,14 +647,10 @@ struct ShortcutRecorderView: View {
                 return nil
             }
 
-            // Map character to key code
-            let char = event.charactersIgnoringModifiers?.lowercased() ?? ""
-            if let keyCode = characterToKeyCode(char) {
-                hotkeyManager.setShortcut(keyCode: keyCode, modifiers: flags)
-                stopRecording()
-                return nil
-            }
-            return event
+            // Use hardware keyCode directly — works on all keyboard layouts
+            hotkeyManager.setShortcut(keyCode: Int64(event.keyCode), modifiers: flags)
+            stopRecording()
+            return nil
         }
     }
 
@@ -668,14 +664,3 @@ struct ShortcutRecorderView: View {
     }
 }
 
-/// Map a character string to a macOS key code.
-private func characterToKeyCode(_ char: String) -> Int64? {
-    let map: [String: Int64] = [
-        "a": 0, "s": 1, "d": 2, "f": 3, "h": 4, "g": 5, "z": 6, "x": 7,
-        "c": 8, "v": 9, "b": 11, "q": 12, "w": 13, "e": 14, "r": 15,
-        "y": 16, "t": 17, "1": 18, "2": 19, "3": 20, "4": 21, "6": 22,
-        "5": 23, "9": 25, "7": 26, "8": 28, "0": 29, "o": 31, "u": 32,
-        "i": 34, "p": 35, "l": 37, "j": 38, "k": 40, "n": 45, "m": 46,
-    ]
-    return map[char.lowercased()]
-}

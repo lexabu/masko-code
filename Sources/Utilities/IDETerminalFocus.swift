@@ -7,33 +7,31 @@ enum IDETerminalFocus {
 
     /// Focus the terminal for a given session.
     static func focusSession(_ session: AgentSession) {
-        focus(terminalPid: session.terminalPid, shellPid: session.shellPid, projectDir: session.projectDir)
+        focus(terminalPid: session.terminalPid, shellPid: session.shellPid, projectDir: session.projectDir, savedBundleId: session.terminalBundleId)
     }
 
     /// Focus a terminal by PID.
     /// 1. If shellPid + IDE extension available → bring correct window to front, then open URI to focus exact terminal tab
     /// 2. If terminalPid available → activate the IDE/terminal app (brings to foreground)
     /// 3. Fallback → activate first running terminal-like app
-    static func focus(terminalPid: Int? = nil, shellPid: Int? = nil, projectDir: String? = nil) {
-        // Resolve bundle ID from terminalPid
+    static func focus(terminalPid: Int? = nil, shellPid: Int? = nil, projectDir: String? = nil, savedBundleId: String? = nil) {
+        // Resolve bundle ID from terminalPid, fall back to persisted bundleId
         var bundleId: String?
         if let pid = terminalPid,
            let app = NSRunningApplication(processIdentifier: pid_t(pid)) {
             bundleId = app.bundleIdentifier
+        }
+        if bundleId == nil {
+            bundleId = savedBundleId
         }
 
         // Try IDE extension for exact terminal tab focus
         if let shellPid,
            let bundleId,
            UserDefaults.standard.bool(forKey: "ideExtensionEnabled") {
-            // Try to raise the specific window by title (works across fullscreen Spaces)
-            if let projectDir, let pid = terminalPid,
-               let app = NSRunningApplication(processIdentifier: pid_t(pid)),
-               let processName = app.localizedName {
-                let folderName = (projectDir as NSString).lastPathComponent
-                if !raiseWindowByTitle(processName: processName, titleContains: folderName) {
-                    app.activate()
-                }
+            // Bring the correct workspace window to front (handles multi-window IDEs like Cursor)
+            if let projectDir {
+                bringWindowToFront(bundleId: bundleId, projectDir: projectDir)
             } else if let pid = terminalPid,
                let app = NSRunningApplication(processIdentifier: pid_t(pid)) {
                 app.activate()
@@ -62,6 +60,12 @@ enum IDETerminalFocus {
                     return
                 }
             }
+        }
+
+        // For multi-window IDEs (VS Code, Cursor, etc.), use `open -b` to raise the correct workspace window
+        if let projectDir, let bundleId {
+            bringWindowToFront(bundleId: bundleId, projectDir: projectDir)
+            return
         }
 
         // Try terminal-specific tab switching (iTerm2, Terminal.app)
@@ -94,7 +98,6 @@ enum IDETerminalFocus {
             activateApp(bundleId: bundleId)
             return
         }
-
         // Last resort: find any running terminal app
         let bundleIDs = [
             "com.apple.Terminal",

@@ -293,6 +293,7 @@ struct ExpandedPermissionView: View {
             .background(isSelected
                 ? Color(red: 249/255, green: 93/255, blue: 2/255).opacity(0.06)
                 : Color.clear)
+            .contentShape(Rectangle())
             .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
@@ -333,6 +334,7 @@ struct ExpandedPermissionView: View {
                 .background(isCustom
                     ? Color(red: 249/255, green: 93/255, blue: 2/255).opacity(0.06)
                     : Color.clear)
+                .contentShape(Rectangle())
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             }
             .buttonStyle(.plain)
@@ -399,6 +401,7 @@ struct ExpandedPermissionView: View {
                 .foregroundStyle(Color(red: 35/255, green: 17/255, blue: 60/255).opacity(0.5))
                 .padding(.vertical, 8)
                 .padding(.horizontal, 20)
+                .contentShape(Rectangle())
                 .overlay(RoundedRectangle(cornerRadius: 8)
                     .stroke(Color(red: 35/255, green: 17/255, blue: 60/255).opacity(0.12), lineWidth: 1))
             }
@@ -452,6 +455,7 @@ struct ExpandedPermissionView: View {
                         .background(selectedOption == idx
                             ? Color(red: 249/255, green: 93/255, blue: 2/255).opacity(0.06)
                             : Color(red: 35/255, green: 17/255, blue: 60/255).opacity(0.02))
+                        .contentShape(Rectangle())
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
                     .buttonStyle(.plain)
@@ -508,6 +512,7 @@ struct ExpandedPermissionView: View {
                                 .foregroundStyle(Color(red: 35/255, green: 17/255, blue: 60/255).opacity(0.5))
                                 .padding(.vertical, 6)
                                 .padding(.horizontal, 12)
+                                .contentShape(Rectangle())
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
                                 .overlay(RoundedRectangle(cornerRadius: 8)
                                     .stroke(Color(red: 35/255, green: 17/255, blue: 60/255).opacity(0.12), lineWidth: 1))
@@ -562,6 +567,7 @@ struct ExpandedPermissionView: View {
                 .foregroundStyle(Color(red: 35/255, green: 17/255, blue: 60/255).opacity(0.5))
                 .padding(.vertical, 8)
                 .padding(.horizontal, 20)
+                .contentShape(Rectangle())
                 .overlay(RoundedRectangle(cornerRadius: 8)
                     .stroke(Color(red: 35/255, green: 17/255, blue: 60/255).opacity(0.12), lineWidth: 1))
             }
