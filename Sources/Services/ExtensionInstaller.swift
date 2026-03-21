@@ -9,8 +9,8 @@ enum ExtensionInstaller {
     private static let extensionId = "masko.masko-terminal-focus"
     private static let jetbrainsPluginId = "ai.masko.terminal-focus"
 
-    /// VS Code-family IDEs: (bundleId, CLI command, URI scheme, common CLI paths)
-    private static let vscodeConfigs: [(bundleId: String, command: String, scheme: String, paths: [String])] = [
+    /// VS Code-family IDEs: (bundleId, CLI command, URI scheme, common CLI paths, skipAutoInstall)
+    private static let vscodeConfigs: [(bundleId: String, command: String, scheme: String, paths: [String], skipAutoInstall: Bool)] = [
         (
             "com.todesktop.230313mzl4w4u92",
             "cursor",
@@ -18,7 +18,8 @@ enum ExtensionInstaller {
             [
                 "/usr/local/bin/cursor",
                 "/Applications/Cursor.app/Contents/Resources/app/bin/cursor",
-            ]
+            ],
+            false
         ),
         (
             "com.microsoft.VSCode",
@@ -27,7 +28,8 @@ enum ExtensionInstaller {
             [
                 "/usr/local/bin/code",
                 "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code",
-            ]
+            ],
+            false
         ),
         (
             "com.microsoft.VSCodeInsiders",
@@ -36,7 +38,8 @@ enum ExtensionInstaller {
             [
                 "/usr/local/bin/code-insiders",
                 "/Applications/Visual Studio Code - Insiders.app/Contents/Resources/app/bin/code-insiders",
-            ]
+            ],
+            false
         ),
         (
             "com.exafunction.windsurf",
@@ -45,16 +48,20 @@ enum ExtensionInstaller {
             [
                 "/usr/local/bin/windsurf",
                 "/Applications/Windsurf.app/Contents/Resources/app/bin/windsurf",
-            ]
+            ],
+            false
         ),
         (
+            // Antigravity's extension host crashes (SIGABRT) during module resolution.
+            // Skip auto-install, but keep it available for manual install from Settings.
             "com.google.antigravity",
             "antigravity",
             "antigravity",
             [
                 "/usr/local/bin/antigravity",
                 "/Applications/Antigravity.app/Contents/Resources/app/bin/antigravity",
-            ]
+            ],
+            true
         ),
     ]
 
@@ -164,7 +171,7 @@ enum ExtensionInstaller {
         return result
     }
 
-    /// Install the extension into all detected IDEs
+    /// Install the extension into all detected IDEs (skips IDEs with skipAutoInstall)
     static func install() throws {
         var installed = false
 
@@ -172,6 +179,7 @@ enum ExtensionInstaller {
         let vsixPath = bundledVSIXPath()
         if FileManager.default.fileExists(atPath: vsixPath) {
             for ide in vscodeConfigs {
+                if ide.skipAutoInstall { continue }
                 guard let cliPath = resolveCommand(ide) else { continue }
                 let process = Process()
                 process.executableURL = URL(fileURLWithPath: cliPath)
@@ -303,7 +311,7 @@ enum ExtensionInstaller {
 
     /// Find the CLI binary — try `which` first, then fall back to known paths
     private static func resolveCommand(
-        _ ide: (bundleId: String, command: String, scheme: String, paths: [String])
+        _ ide: (bundleId: String, command: String, scheme: String, paths: [String], skipAutoInstall: Bool)
     ) -> String? {
         // Try which first (works when the user has the CLI in their PATH)
         if let path = whichCommand(ide.command) {
