@@ -143,6 +143,9 @@ final class OverlayStateMachine {
             print("[masko-desktop] WARNING: \(conditionlessCount) transition edges have NO CONDITIONS")
         }
 
+        // Preload audio files
+        EdgeAudioService.shared.preload(config)
+
         arriveAtNode(currentNodeId)
     }
 
@@ -410,6 +413,9 @@ final class OverlayStateMachine {
         inputs["nodeTime"] = .number(0)
         inputs["clicked"] = .bool(false)
 
+        // Stop looping audio (e.g. permission alert), let one-shot sounds finish
+        EdgeAudioService.shared.stopLooping()
+
         let nodeName = config.nodes.first(where: { $0.id == nodeId })?.name ?? nodeId
 
         // Find loop edge for this node
@@ -422,6 +428,11 @@ final class OverlayStateMachine {
             isLoopVideo = true
             phase = .looping
             print("[masko-desktop] Arrived at \(nodeName) — looping")
+
+            // Play loop sound if present (e.g. permission alert loop)
+            if let sound = loopEdge.sound {
+                EdgeAudioService.shared.play(sound)
+            }
         } else {
             phase = .idle
             print("[masko-desktop] Arrived at \(nodeName) — idle (no loop video)")
@@ -487,6 +498,15 @@ final class OverlayStateMachine {
         print("[masko-desktop] Playing transition: \(sourceName) → \(targetName)")
 
         cancelNodeTimeTimer()
+
+        // Stop any loop sound from the current node
+        EdgeAudioService.shared.stop()
+
+        // Play transition sound if present
+        if let sound = edge.sound {
+            EdgeAudioService.shared.play(sound)
+        }
+
         pendingEdge = edge
         let resolved = VideoCache.shared.resolve(url)
         currentVideoURL = resolved

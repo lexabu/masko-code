@@ -62,6 +62,13 @@ struct MaskoAnimationEdge: Codable, Identifiable {
     let videos: MaskoAnimationVideos
     let priority: Int?       // Any State edges: higher = checked first
     let speed: Double?       // Playback rate (defaults to 1.0)
+    let sound: EdgeSound?    // Optional sound to play on this edge
+}
+
+struct EdgeSound: Codable {
+    let url: String          // URL to audio file (mp3/wav/m4a)
+    let loop: Bool?          // If true, loops while in this state (default: false)
+    let volume: Double?      // 0.0 - 1.0 (default: 1.0)
 }
 
 struct MaskoAnimationCondition: Codable {
