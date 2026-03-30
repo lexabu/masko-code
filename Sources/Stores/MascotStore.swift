@@ -71,8 +71,10 @@ final class MascotStore {
         }
     }
 
-    static func fetchRemoteConfig(slug: String) async -> MaskoAnimationConfig? {
-        guard let url = URL(string: "\(Constants.maskoBaseURL)/api/mascot-templates/\(slug)") else { return nil }
+    static func fetchRemoteConfig(slug: String, token: String? = nil) async -> MaskoAnimationConfig? {
+        var urlString = "\(Constants.maskoBaseURL)/api/mascot-templates/\(slug)"
+        if let token { urlString += "?token=\(token)" }
+        guard let url = URL(string: urlString) else { return nil }
         guard let (data, response) = try? await URLSession.shared.data(from: url),
               (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
         return try? JSONDecoder().decode(MaskoAnimationConfig.self, from: data)

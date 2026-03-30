@@ -240,8 +240,10 @@ struct MaskoDesktopApp: App {
         case "install":
             let slug = url.pathComponents.count > 1 ? url.pathComponents[1] : ""
             guard !slug.isEmpty else { return }
+            let token = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first(where: { $0.name == "token" })?.value
             Task {
-                if let config = await MascotStore.fetchRemoteConfig(slug: slug) {
+                if let config = await MascotStore.fetchRemoteConfig(slug: slug, token: token) {
                     await MainActor.run {
                         appStore.mascotStore.addFromCommunity(config: config, slug: slug)
                         // Navigate to the newly added mascot's detail view
