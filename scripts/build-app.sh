@@ -60,6 +60,13 @@ cp -R "$RESOURCE_BUNDLE" "$APP_PATH/Contents/Resources/masko-code_masko-code.bun
 # removing it would require patching Package.swift and MaskoDesktopApp.swift imports)
 cp -R "$SPARKLE_FRAMEWORK" "$APP_PATH/Contents/Frameworks/Sparkle.framework"
 
+# SwiftPM doesn't set an rpath pointing at Contents/Frameworks because it assumes
+# command-line execution (binary + Sparkle.framework side by side). For an .app
+# bundle we need @loader_path/../Frameworks so dyld finds Sparkle at runtime.
+echo "==> Patching rpath so binary finds Sparkle in Contents/Frameworks …"
+install_name_tool -add_rpath "@loader_path/../Frameworks" \
+  "$APP_PATH/Contents/MacOS/masko-code"
+
 echo "==> Codesigning with identifier $CODESIGN_IDENT …"
 # Deep-sign frameworks first, then the .app
 codesign --force --deep --sign - \
