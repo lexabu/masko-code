@@ -34,11 +34,15 @@ final class LocalServer {
         // PATCH (lexabu fork): bind loopback only. Upstream binds 0.0.0.0 which
         // exposes /hook, /input, /install to anyone on the LAN. Hook script already
         // uses localhost; no legitimate need for external interfaces.
+        //
+        // When requiredLocalEndpoint is set, use NWListener(using:) (no port arg) —
+        // the port lives in the endpoint. Passing both conflicts and NWListener
+        // fails silently (state goes .waiting without ever reaching .ready).
         params.requiredLocalEndpoint = NWEndpoint.hostPort(
             host: .ipv4(.loopback),
             port: nwPort
         )
-        listener = try NWListener(using: params, on: nwPort)
+        listener = try NWListener(using: params)
 
         listener?.newConnectionHandler = { [weak self] connection in
             self?.handleConnection(connection)
