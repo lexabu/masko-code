@@ -31,6 +31,13 @@ final class LocalServer {
         // (avoids TIME_WAIT blocking the port for up to 60s)
         params.allowLocalEndpointReuse = true
         guard let nwPort = NWEndpoint.Port(rawValue: port) else { return }
+        // PATCH (lexabu fork): bind loopback only. Upstream binds 0.0.0.0 which
+        // exposes /hook, /input, /install to anyone on the LAN. Hook script already
+        // uses localhost; no legitimate need for external interfaces.
+        params.requiredLocalEndpoint = NWEndpoint.hostPort(
+            host: .ipv4(.loopback),
+            port: nwPort
+        )
         listener = try NWListener(using: params, on: nwPort)
 
         listener?.newConnectionHandler = { [weak self] connection in
@@ -167,9 +174,12 @@ final class LocalServer {
             return
         }
 
-        // CORS preflight for browser requests (e.g. from masko.ai export modal)
-        if firstLine.contains("OPTIONS /install") {
-            sendCORSResponse(connection: connection, status: "204 No Content", body: "")
+        // PATCH (lexabu fork): /install endpoint removed. Upstream sets
+        // Access-Control-Allow-Origin: * which lets any website POST mascot
+        // configs to localhost:49152/install. Use masko:// URL scheme or the
+        // dashboard paste flow instead.
+        if firstLine.contains("OPTIONS /install") || firstLine.contains("POST /install") {
+            sendResponse(connection: connection, status: "410 Gone", body: "install endpoint removed in this fork")
             return
         }
 
@@ -240,20 +250,7 @@ final class LocalServer {
             return
         }
 
-        // Route: POST /install — receive mascot config from masko.ai export modal
-        if firstLine.contains("POST /install") {
-            let decoder = JSONDecoder()
-            if let config = try? decoder.decode(MaskoAnimationConfig.self, from: bodyData) {
-                print("[masko-desktop] Install received: \(config.name)")
-                DispatchQueue.main.async { [weak self] in
-                    self?.onInstallReceived?(config)
-                }
-                sendCORSResponse(connection: connection, status: "200 OK", body: "OK")
-            } else {
-                sendCORSResponse(connection: connection, status: "400 Bad Request", body: "Invalid config JSON")
-            }
-            return
-        }
+        // PATCH (lexabu fork): POST /install handler removed (see OPTIONS handler above).
 
         sendResponse(connection: connection, status: "404 Not Found", body: "Not Found")
     }

@@ -26,10 +26,12 @@
     <string>AppIcon</string>
     <key>ATSApplicationFontsPath</key>
     <string>Fonts</string>
-    <key>SUFeedURL</key>
-    <string>https://masko.ai/api/desktop/appcast</string>
-    <key>SUPublicEDKey</key>
-    <string>/BVYK9Q4hZORSn/xfhu4BCCLrug5zEA5WkwXG2lgdiw=</string>
+    <!-- PATCH (lexabu fork): SUFeedURL and SUPublicEDKey removed.
+         Sparkle auto-update is disabled in code (AppUpdater.init in
+         Sources/App/MaskoDesktopApp.swift) and these keys are stripped as
+         defense-in-depth. Manual upgrades only via `git pull upstream main` + rebuild. -->
+    <key>SUEnableAutomaticChecks</key>
+    <false/>
     <key>NSAppleEventsUsageDescription</key>
     <string>Masko Code needs permission to switch to the correct terminal tab when you interact with permission bubbles.</string>
     <key>CFBundleURLTypes</key>

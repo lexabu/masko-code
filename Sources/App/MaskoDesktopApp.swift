@@ -95,17 +95,12 @@ final class AppUpdater {
     private(set) var isAvailable = false
 
     init() {
-        // Only start Sparkle if the app is code-signed (release builds).
-        // Unsigned builds will have no valid signature → Sparkle fails loudly.
-        if Self.isCodeSigned {
-            let ctrl = SPUStandardUpdaterController(
-                startingUpdater: true,
-                updaterDelegate: nil,
-                userDriverDelegate: nil
-            )
-            controller = ctrl
-            isAvailable = true
-        }
+        // PATCH (lexabu fork): Sparkle auto-update permanently disabled.
+        // Upstream pulls from https://masko.ai/api/desktop/appcast which lets the
+        // Masko maintainer push arbitrary code to our install. Manual upgrades only
+        // via `git pull upstream main` in vendor/apps/masko-code/ + rebuild.
+        // Controller is never instantiated → Sparkle framework stays dormant.
+        _ = Self.isCodeSigned  // silence unused-function warning
     }
 
     var canCheckForUpdates: Bool { controller?.updater.canCheckForUpdates ?? false }
